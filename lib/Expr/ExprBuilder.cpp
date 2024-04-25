@@ -901,6 +901,11 @@ namespace {
 
     ref<Expr> UDiv (const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+      
+      if (LHS->isZero()) {
+        return LHS;
+      }
+
       return Base->UDiv(LHS, RHS);
     }
 
@@ -922,6 +927,11 @@ namespace {
 
     ref<Expr> SDiv (const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+      
+      if (LHS->isZero()) {
+        return LHS;
+      }
+      
       return Base->SDiv(LHS, RHS);
     }
 
