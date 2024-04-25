@@ -824,6 +824,7 @@ namespace {
 
     ref<Expr> Sub(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
       switch (LHS->getKind()) {
       default: break;
 
@@ -889,6 +890,46 @@ namespace {
                   const ref<NonConstantExpr> &RHS) {
       return Base->Mul(LHS, RHS);
     }
+
+    ref<Expr> UDiv (const ref<NonConstantExpr> &LHS,
+                  const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        return LHS;
+      }
+      return Base->UDiv(LHS, RHS);
+    }
+
+    ref<Expr> UDiv (const ref<ConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->UDiv(LHS, RHS);
+    }
+
+    ref<Expr> UDiv (const ref<NonConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->UDiv(LHS, RHS);
+    }
+
+
+
+
+    ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
+                  const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        return LHS;
+      }
+      return Base->SDiv(LHS, RHS);
+    }
+
+    ref<Expr> SDiv (const ref<ConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->SDiv(LHS, RHS);
+    }
+
+    ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->SDiv(LHS, RHS);
+    }
+
 
     ref<Expr> And(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
