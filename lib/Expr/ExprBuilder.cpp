@@ -914,9 +914,6 @@ namespace {
       return Base->UDiv(LHS, RHS);
     }
 
-
-
-
     ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
@@ -935,9 +932,55 @@ namespace {
       return Base->SDiv(LHS, RHS);
     }
 
-    ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
+    ref<Expr> SDiv(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       return Base->SDiv(LHS, RHS);
+    }
+
+    ref<Expr> URem(const ref<NonConstantExpr> &LHS,
+                  const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        return LHS;
+      }
+      return Base->URem(LHS, RHS);
+    }
+
+    ref<Expr> URem(const ref<ConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      
+      if (LHS->isZero()) {
+        return LHS;
+      }
+
+      return Base->URem(LHS, RHS);
+    }
+
+    ref<Expr> URem(const ref<NonConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->URem(LHS, RHS);
+    }
+
+    ref<Expr> SRem(const ref<NonConstantExpr> &LHS,
+                  const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        return LHS;
+      }
+      return Base->SRem(LHS, RHS);
+    }
+
+    ref<Expr> SRem(const ref<ConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      
+      if (LHS->isZero()) {
+        return LHS;
+      }
+
+      return Base->SRem(LHS, RHS);
+    }
+
+    ref<Expr> SRem(const ref<NonConstantExpr> &LHS,
+                  const ref<NonConstantExpr> &RHS) {
+      return Base->SRem(LHS, RHS);
     }
 
 

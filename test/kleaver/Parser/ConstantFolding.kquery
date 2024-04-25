@@ -218,3 +218,23 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep -A 2 "# Query 41$" %t > %t2
 # RUN: grep "(query .. false .(w8 0)." %t2
 (query [] false [(SDiv w8 0 (Read w8 0 a))])
+
+# Check -- X % 1 ==> X
+# RUN: grep -A 2 "# Query 42$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(SRem w8 (Read w8 0 a) 1)])
+
+# Check -- X % 1 ==> X
+# RUN: grep -A 2 "# Query 43$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(URem w8 (Read w8 0 a) 1)])
+
+# Check -- 0 % X ==> 0
+# RUN: grep -A 2 "# Query 44$" %t > %t2
+# RUN: grep "(query .. false .(w8 0)." %t2
+(query [] false [(URem w8 0 (Read w8 0 a))])
+
+# Check -- 0 % X ==> 0
+# RUN: grep -A 2 "# Query 45$" %t > %t2
+# RUN: grep "(query .. false .(w8 0)." %t2
+(query [] false [(SRem w8 0 (Read w8 0 a))])
