@@ -944,6 +944,11 @@ namespace {
 
     ref<Expr> URem(const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        // X % 1 => 0
+        return Builder->Constant(0, RHS->getWidth());
+      }
+
       return Base->URem(LHS, RHS);
     }
 
@@ -964,6 +969,11 @@ namespace {
 
     ref<Expr> SRem(const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
+      if (RHS->isOne()) {
+        // X % 1 => 0
+        return Builder->Constant(0, RHS->getWidth());
+      }
+
       return Base->SRem(LHS, RHS);
     }
 
