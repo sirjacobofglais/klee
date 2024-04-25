@@ -873,8 +873,10 @@ namespace {
     ref<Expr> Mul(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero())
+        // 0 * X => 0
         return LHS;
       if (LHS->isOne())
+        // 1 * X => X
         return RHS;
       // FIXME: Unbalance nested muls, fold constants through
       // {sub,add}-with-constant, etc.
@@ -894,6 +896,7 @@ namespace {
     ref<Expr> UDiv (const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
+        // X / 1 => 1
         return LHS;
       }
       return Base->UDiv(LHS, RHS);
@@ -901,8 +904,8 @@ namespace {
 
     ref<Expr> UDiv (const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
-      
       if (LHS->isZero()) {
+        // 0 / X => 0
         return LHS;
       }
 
@@ -917,6 +920,7 @@ namespace {
     ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
+        // X / 1 => X
         return LHS;
       }
       return Base->SDiv(LHS, RHS);
@@ -926,6 +930,7 @@ namespace {
                   const ref<NonConstantExpr> &RHS) {
       
       if (LHS->isZero()) {
+        // 0 / X => 0
         return LHS;
       }
       
@@ -939,16 +944,13 @@ namespace {
 
     ref<Expr> URem(const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
-      if (RHS->isOne()) {
-        return LHS;
-      }
       return Base->URem(LHS, RHS);
     }
 
     ref<Expr> URem(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
-      
       if (LHS->isZero()) {
+        // 0 % X => 0
         return LHS;
       }
 
@@ -962,9 +964,6 @@ namespace {
 
     ref<Expr> SRem(const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
-      if (RHS->isOne()) {
-        return LHS;
-      }
       return Base->SRem(LHS, RHS);
     }
 
@@ -972,6 +971,7 @@ namespace {
                   const ref<NonConstantExpr> &RHS) {
       
       if (LHS->isZero()) {
+        // 0 % X => 0
         return LHS;
       }
 
@@ -987,8 +987,10 @@ namespace {
     ref<Expr> And(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero())
+        // 0 & X => 0
         return LHS;
       if (LHS->isAllOnes())
+        // -1 & X => X 
         return RHS;
       // FIXME: Unbalance nested ands, fold constants through
       // {and,or}-with-constant, etc.
@@ -1008,8 +1010,10 @@ namespace {
     ref<Expr> Or(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero())
+        // 0 | X => X
         return RHS;
       if (LHS->isAllOnes())
+        // -1 | X => -1
         return LHS;
       // FIXME: Unbalance nested ors, fold constants through
       // {and,or}-with-constant, etc.
@@ -1029,6 +1033,7 @@ namespace {
     ref<Expr> Xor(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero())
+        // 0 ^ X => X
         return RHS;
       // FIXME: Unbalance nested ors, fold constants through
       // {and,or}-with-constant, etc.
