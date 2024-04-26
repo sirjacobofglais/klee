@@ -238,3 +238,48 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep -A 2 "# Query 45$" %t > %t2
 # RUN: grep "(query .. false .(w8 0)." %t2
 (query [] false [(SRem w8 0 (Read w8 0 a))])
+
+# Check -- X << 0 ==> X
+# RUN: grep -A 2 "# Query 46$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(Shl w8 (Read w8 0 a) 0)])
+
+# Check -- X >> 0 ==> X
+# RUN: grep -A 2 "# Query 47$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(LShr w8 (Read w8 0 a) 0)])
+
+# Check -- X >>a 0 ==> X
+# RUN: grep -A 2 "# Query 48$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(AShr w8 (Read w8 0 a) 0)])
+
+# Check -- 0 << X ==> 0
+# RUN: grep -A 2 "# Query 49$" %t > %t2
+# RUN: grep "(query .. false .(w8 0)." %t2
+(query [] false [(Shl w8 0 (Read w8 0 a))])
+
+# Check -- 0 >> X ==> 0
+# RUN: grep -A 2 "# Query 50$" %t > %t2
+# RUN: grep "(query .. false .(w8 0)." %t2
+(query [] false [(LShr w8 0 (Read w8 0 a))])
+
+# Check -- 0 >>a X ==> 0
+# RUN: grep -A 2 "# Query 51$" %t > %t2
+# RUN: grep "(query .. false .(w8 0)." %t2
+(query [] false [(AShr w8 0 (Read w8 0 a))])
+
+# Check -- -1 << X ==> -1
+# RUN: grep -A 2 "# Query 52$" %t > %t2
+# RUN: grep "(query .. false .(w8 255)." %t2
+(query [] false [(Shl w8 255 (Read w8 0 a))])
+
+# Check -- -1 >> X ==> -1
+# RUN: grep -A 2 "# Query 53$" %t > %t2
+# RUN: grep "(query .. false .(w8 255)." %t2
+(query [] false [(LShr w8 255 (Read w8 0 a))])
+
+# Check -- -1 >> X ==> -1
+# RUN: grep -A 2 "# Query 54$" %t > %t2
+# RUN: grep "(query .. false .(w8 255)." %t2
+(query [] false [(AShr w8 255 (Read w8 0 a))])

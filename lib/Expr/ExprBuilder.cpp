@@ -1060,6 +1060,69 @@ namespace {
       return Base->Xor(LHS, RHS);
     }
 
+    ref<Expr> Shl(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      if (RHS->isZero()) {
+        return LHS;
+      }
+      return Base->Shl(LHS, RHS);
+    }
+
+    ref<Expr> Shl(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      if (LHS->isZero() || LHS->isAllOnes()) 
+        return LHS;
+
+      return Base->Shl(LHS, RHS);
+    }
+
+    ref<Expr> Shl(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Shl(LHS, RHS);
+    }
+
+    ref<Expr> LShr(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      if (RHS->isZero()) {
+        return LHS;
+      }
+      return Base->LShr(LHS, RHS);
+    }
+
+    ref<Expr> LShr(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      if (LHS->isZero() || LHS->isAllOnes()) 
+        return LHS;
+
+      return Base->LShr(LHS, RHS);
+    }
+
+    ref<Expr> LShr(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->LShr(LHS, RHS);
+    }
+
+    ref<Expr> AShr(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      if (RHS->isZero()) {
+        return LHS;
+      }
+      return Base->AShr(LHS, RHS);
+    }
+
+    ref<Expr> AShr(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      if (LHS->isZero() || LHS->isAllOnes()) 
+        return LHS;
+
+      return Base->AShr(LHS, RHS);
+    }
+
+    ref<Expr> AShr(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->AShr(LHS, RHS);
+    }
+
     ref<Expr> Eq(const ref<ConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
       Expr::Width Width = LHS->getWidth();
@@ -1070,7 +1133,7 @@ namespace {
           return RHS;
 
         // false == ... (not)
-	return Base->Not(RHS);
+	      return Base->Not(RHS);
       }
 
       return Base->Eq(LHS, RHS);
@@ -1085,6 +1148,7 @@ namespace {
                  const ref<NonConstantExpr> &RHS) {
       return Base->Eq(LHS, RHS);
     }
+
   };
 
   typedef ConstantSpecializedExprBuilder<ConstantFoldingBuilder>
