@@ -284,3 +284,9 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep "(query .. false .(w8 255)." %t2
 (query [] false [(AShr w8 255 (Read w8 0 a))])
 
+# Check -- 0 - X => -X
+# RUN: grep -A 2 "# Query 55$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(Not w8 (Read w8 0 a))" %t2
+(query [] false [(Sub w8 0 (Read w8 0 a))])
+

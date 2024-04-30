@@ -787,6 +787,11 @@ namespace {
 
     ref<Expr> Sub(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      // 0 - X => -X
+      if (LHS->isZero())
+        return Builder->Not(RHS);
+
       switch (RHS->getKind()) {
       default: break;
 
