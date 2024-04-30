@@ -1149,6 +1149,32 @@ namespace {
       return Base->Eq(LHS, RHS);
     }
 
+    ref<Expr> Ult(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Ult(LHS, RHS);
+    }
+
+    ref<Expr> Ult(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+
+    /*
+      Expr::Width Width = LHS->getWidth();
+      //As it's unsigned, probably can remove the w1 restriction?
+      if (Width == Expr::Bool) {
+        // w1 X < 0 ==> false
+        if (RHS->isZero())
+          return Base->Constant(0, Expr::Bool); //Base->Constant(0, Width);
+      }
+    */
+      return Base->Ult(LHS, RHS);
+    }
+
+    ref<Expr> Ult(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Ult(LHS, RHS);
+    }
+
+
   };
 
   typedef ConstantSpecializedExprBuilder<ConstantFoldingBuilder>
