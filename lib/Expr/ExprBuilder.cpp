@@ -875,8 +875,22 @@ namespace {
         return LHS;
       if (LHS->isOne())
         return RHS;
-      // FIXME: Unbalance nested muls, fold constants through
-      // {sub,add}-with-constant, etc.
+      
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Mul: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 * (C_1 * X) ==> (C_0 * C1) * X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Mul(LHS->Mul(CE), BE->right);
+          // C_0 * (X * C_1) ==> (C_0 * C1) * X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Mul(LHS->Mul(CE), BE->left);
+          break;
+        }
+      }
+      // FIXME: fold constants through {sub,add}-with-constant, etc.
       return Base->Mul(LHS, RHS);
     }
 
@@ -887,6 +901,31 @@ namespace {
 
     ref<Expr> Mul(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      switch (LHS->getKind()) {
+        default: break;
+        case Expr::Mul: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+          // (X * Y) * Z ==> X * (Y * Z)
+          return Builder->Mul(BE->left,
+                              Builder->Mul(BE->right, RHS));
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+        case Expr::Mul: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // X * (C_0 * Y) ==> C_0 * (X * Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Mul(CE, Builder->Mul(LHS, BE->right));
+          // X * (Y * C_0) ==> C_0 * (X * Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Mul(CE, Builder->Mul(LHS, BE->left));
+          break;
+        }
+      }
+
       return Base->Mul(LHS, RHS);
     }
 
@@ -896,8 +935,23 @@ namespace {
         return LHS;
       if (LHS->isAllOnes())
         return RHS;
-      // FIXME: Unbalance nested ands, fold constants through
-      // {and,or}-with-constant, etc.
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 & (C_1 & X) ==> (C_0 & C_1) & X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->And(LHS->And(CE), BE->right);
+          // C_0 & (X & C_1) ==> (C_0 & C_1) & X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->And(LHS->And(CE), BE->left);
+          break;
+        }
+      }
+
+      // FIXME: fold constants through {and,or}-with-constant, etc.
       return Base->And(LHS, RHS);
     }
 
@@ -908,6 +962,31 @@ namespace {
 
     ref<Expr> And(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      switch (LHS->getKind()) {
+        default: break;
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+          // (X & Y) & Z ==> X & (Y & Z)
+          return Builder->And(BE->left,
+                              Builder->And(BE->right, RHS));
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // X & (C_0 & Y) ==> C_0 & (X & Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->And(CE, Builder->And(LHS, BE->right));
+          // X & (Y & C_0) ==> C_0 & (X & Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->And(CE, Builder->And(LHS, BE->left));
+          break;
+        }
+      }
+
       return Base->And(LHS, RHS);
     }
 
@@ -917,8 +996,23 @@ namespace {
         return RHS;
       if (LHS->isAllOnes())
         return LHS;
-      // FIXME: Unbalance nested ors, fold constants through
-      // {and,or}-with-constant, etc.
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Or: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 | (C_1 | X) ==> (C_0 | C_1) | X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Or(LHS->Or(CE), BE->right);
+          // C_0 | (X | C_1) ==> (C_0 | C_1) | X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Or(LHS->Or(CE), BE->left);
+          break;
+        }
+      }
+
+      // FIXME: fold constants through {and,or}-with-constant, etc.
       return Base->Or(LHS, RHS);
     }
 
@@ -929,6 +1023,31 @@ namespace {
 
     ref<Expr> Or(const ref<NonConstantExpr> &LHS,
                  const ref<NonConstantExpr> &RHS) {
+
+      switch (LHS->getKind()) {
+        default: break;
+        case Expr::Or: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+          // (X | Y) | Z ==> X | (Y | Z)
+          return Builder->Or(BE->left,
+                              Builder->Or(BE->right, RHS));
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+        case Expr::Or: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // X | (C_0 | Y) ==> C_0 | (X | Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Or(CE, Builder->Or(LHS, BE->right));
+          // X | (Y | C_0) ==> C_0 | (X | Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Or(CE, Builder->Or(LHS, BE->left));
+          break;
+        }
+      }
+
       return Base->Or(LHS, RHS);
     }
 
@@ -936,8 +1055,23 @@ namespace {
                   const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero())
         return RHS;
-      // FIXME: Unbalance nested ors, fold constants through
-      // {and,or}-with-constant, etc.
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Xor: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 ^ (C_1 ^ X) ==> (C_0 ^ C_1) ^ X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Xor(LHS->Xor(CE), BE->right);
+          // C_0 ^ (X ^ C_1) ==> (C_0 ^ C_1) ^ X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Xor(LHS->Xor(CE), BE->left);
+          break;
+        }
+      }
+
+      // FIXME: fold constants through {and,or}-with-constant, etc.
       return Base->Xor(LHS, RHS);
     }
 
@@ -948,6 +1082,32 @@ namespace {
 
     ref<Expr> Xor(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::Xor: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+          // (X ^ Y) ^ Z ==> X ^ (Y ^ Z)
+          return Builder->Xor(BE->left,
+                              Builder->Xor(BE->right, RHS));
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+        case Expr::Xor: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // X ^ (C_0 ^ Y) ==> C_0 ^ (X ^ Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return Builder->Xor(CE, Builder->Xor(LHS, BE->right));
+          // X ^ (Y ^ C_0) ==> C_0 ^ (X ^ Y)
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return Builder->Xor(CE, Builder->Xor(LHS, BE->left));
+          break;
+        }
+      }
+
       return Base->Xor(LHS, RHS);
     }
 
