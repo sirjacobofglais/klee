@@ -1136,6 +1136,11 @@ namespace {
 
     ref<Expr> Xor(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+      
+      if (!LHS->compare(*RHS.get()))
+        // X ^ X => 0
+        return Builder->Constant(0, LHS->getWidth());
+
       return Base->Xor(LHS, RHS);
     }
 
