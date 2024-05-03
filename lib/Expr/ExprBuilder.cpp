@@ -1084,6 +1084,9 @@ namespace {
     ref<Expr> Or(const ref<NonConstantExpr> &LHS,
                  const ref<NonConstantExpr> &RHS) {
 
+      if (!LHS->compare(*RHS.get()))
+        // X | X => X
+        return LHS;
       
       switch (LHS->getKind()) {
         default: break;
