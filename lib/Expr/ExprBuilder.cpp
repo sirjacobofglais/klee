@@ -772,11 +772,16 @@ namespace {
 
       case Expr::Sub: {
         BinaryExpr *BE = cast<BinaryExpr>(RHS);
-        // X + (C_0 - Y) ==> C_0 + (X - Y)
+        
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+          // X + (C_0 - Y) ==> C_0 + (X - Y)
           return Builder->Add(CE, Builder->Sub(LHS, BE->right));
-        // X + (Y - C_0) ==> -C_0 + (X + Y)
+        else if (!BE->right->compare(*LHS.get()))
+          // X + (Y - X) => Y
+          return BE->left;
+        
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+          // X + (Y - C_0) ==> -C_0 + (X + Y)
           return Builder->Add(CE->Neg(), Builder->Add(LHS, BE->left));
         break;
       }
@@ -824,6 +829,10 @@ namespace {
 
     ref<Expr> Sub(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      if (!LHS->compare(*RHS.get()))
+        return Base->Constant(0, 8);
+
       switch (LHS->getKind()) {
       default: break;
 
@@ -848,6 +857,7 @@ namespace {
         // X - (C + Y) ==> -C + (X - Y)
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
           return Builder->Add(CE->Neg(), Builder->Sub(LHS, BE->right));
+        
         // X - (Y + C) ==> -C + (X + Y)
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
           return Builder->Add(CE->Neg(), Builder->Sub(LHS, BE->left));
