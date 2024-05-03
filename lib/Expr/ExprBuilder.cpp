@@ -1029,6 +1029,10 @@ namespace {
     ref<Expr> And(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
 
+      if (!LHS->compare(*RHS.get()))
+        // X & X => X
+        return LHS;
+
       switch (LHS->getKind()) {
         default: break;
 
@@ -1079,6 +1083,36 @@ namespace {
 
     ref<Expr> Or(const ref<NonConstantExpr> &LHS,
                  const ref<NonConstantExpr> &RHS) {
+
+      
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+
+          if(!BE->left->compare(*RHS.get()) || !BE->right->compare(*RHS.get()))
+            // (X & Y) | X => X
+            // (Y & X) | X => X
+            return RHS;
+          break;
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+
+          if(!BE->left->compare(*LHS.get()) || !BE->right->compare(*LHS.get()))
+            // X | (Y & X) => X
+            // X | (X & Y) => X
+            return LHS;
+          break;
+        }
+      }
+
       return Base->Or(LHS, RHS);
     }
 
