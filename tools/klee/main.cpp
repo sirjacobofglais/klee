@@ -206,6 +206,12 @@ namespace {
                                "These options control some of the checks being done by KLEE.");
 
   cl::opt<bool>
+  DisablePathOptimization("disable-path-optimization",
+               cl::desc("Disable expression rewriting on the path condition"),
+               cl::init(false),
+               cl::cat(ChecksCat));
+
+  cl::opt<bool>
   CheckDivZero("check-div-zero",
                cl::desc("Inject checks for division-by-zero (default=true)"),
                cl::init(true),
