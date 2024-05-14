@@ -68,6 +68,14 @@ namespace klee {
     ref<Expr> Constant(uint64_t Value, Expr::Width W) {
       return Constant(llvm::APInt(W, Value));
     }
+
+    ref<Expr> Zero(Expr::Width W) {
+      return Constant(llvm::APInt::getZero(W));
+    }
+
+    ref<Expr> AllOnes(Expr::Width W) {
+      return Constant(llvm::APInt::getAllOnes(W));
+    }
   };
 
   /// createDefaultExprBuilder - Create an expression builder which does no

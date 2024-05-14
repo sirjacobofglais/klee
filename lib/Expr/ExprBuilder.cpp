@@ -754,6 +754,14 @@ namespace {
         return Builder->Add(BE->left,
                             Builder->Sub(RHS, BE->right));
       }
+
+      case Expr::Not: {
+        NotExpr *NE = cast<NotExpr>(LHS);
+        // ~X + X ==> -1
+        if (!(*RHS.get()).compare(*NE->expr.get())) {
+            return Builder->AllOnes(RHS->getWidth());
+        };
+      }
       }
 
       switch (RHS->getKind()) {
@@ -784,6 +792,14 @@ namespace {
           // X + (Y - C_0) ==> -C_0 + (X + Y)
           return Builder->Add(CE->Neg(), Builder->Add(LHS, BE->left));
         break;
+      }
+
+      case Expr::Not: {
+        NotExpr *NE = cast<NotExpr>(RHS);
+        // X + ~X ==> -1
+        if (!(*LHS.get()).compare(*NE->expr.get())) {
+            return Builder->AllOnes(LHS->getWidth());
+        };
       }
       }
 
@@ -926,12 +942,12 @@ namespace {
       return Base->UDiv(LHS, RHS);
     }
 
-    ref<Expr> UDiv (const ref<NonConstantExpr> &LHS,
+    ref<Expr> UDiv(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       return Base->UDiv(LHS, RHS);
     }
 
-    ref<Expr> SDiv (const ref<NonConstantExpr> &LHS,
+    ref<Expr> SDiv(const ref<NonConstantExpr> &LHS,
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
         // X / 1 => X
@@ -940,7 +956,7 @@ namespace {
       return Base->SDiv(LHS, RHS);
     }
 
-    ref<Expr> SDiv (const ref<ConstantExpr> &LHS,
+    ref<Expr> SDiv(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       
       if (LHS->isZero()) {
@@ -1045,6 +1061,14 @@ namespace {
             return RHS;
           break;
         }
+
+        case Expr::Not: {
+          NotExpr *NE = cast<NotExpr>(LHS);
+          // ~X & X => 0
+          if (!(*RHS.get()).compare(*NE->expr.get())) {
+            return Builder->Zero(RHS->getWidth());
+          }
+        }
       }
 
       switch (RHS->getKind()) {
@@ -1058,6 +1082,13 @@ namespace {
             // X & (X | Y) => X
             return LHS;
           break;
+        }
+        case Expr::Not: {
+          NotExpr *NE = cast<NotExpr>(RHS);
+          // X & ~X => 0
+          if (!(*LHS.get()).compare(*NE->expr.get())) {
+            return Builder->Zero(LHS->getWidth());
+          }
         }
       }
       return Base->And(LHS, RHS);
@@ -1100,6 +1131,27 @@ namespace {
             return RHS;
           break;
         }
+
+        case Expr::Not: {
+          NotExpr *NE = cast<NotExpr>(LHS);
+          // ~X | X ==> -1
+          if (!(*RHS.get()).compare(*NE->expr.get())) {
+            return Builder->AllOnes(RHS->getWidth());
+          };
+
+          switch(NE->expr->getKind()) {
+            default: break;
+
+            case Expr::And:{
+              BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
+
+              // X | ~(X & Y) => -1; X | ~(Y & X) => -1
+              if (!RHS->compare(*NBE->left.get()) || !RHS->compare(*NBE->right.get())) {
+                return Builder->AllOnes(RHS->getWidth());
+              }
+            }
+          }
+        }
       }
 
       switch (RHS->getKind()) {
@@ -1114,6 +1166,27 @@ namespace {
             return LHS;
           break;
         }
+
+        case Expr::Not: {
+          NotExpr *NE = cast<NotExpr>(RHS);
+          // ~X | X ==> -1
+          if (!LHS->compare(*NE->expr.get())) {
+            return Builder->AllOnes(LHS->getWidth());
+          }
+
+          switch(NE->expr->getKind()) {
+            default: break;
+
+            case Expr::And:{
+              BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
+
+              // X | ~(X & Y) => -1; X | ~(Y & X) => -1
+              if (!LHS->compare(*NBE->left.get()) || !LHS->compare(*NBE->right.get())) {
+                return Builder->AllOnes(LHS->getWidth());
+              }
+            }
+          }
+        }        
       }
 
       return Base->Or(LHS, RHS);
@@ -1230,6 +1303,12 @@ namespace {
 
     ref<Expr> Eq(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
+
+      if (!LHS->compare(*RHS.get())) {
+        // X == X => true
+        return Builder->True();
+      }
+
       return Base->Eq(LHS, RHS);
     }
 
@@ -1241,24 +1320,86 @@ namespace {
     ref<Expr> Ult(const ref<NonConstantExpr> &LHS, 
                  const ref<ConstantExpr> &RHS) {
 
-    /*
-      Expr::Width Width = LHS->getWidth();
-      //As it's unsigned, probably can remove the w1 restriction?
-      if (Width == Expr::Bool) {
-        // w1 X < 0 ==> false
-        if (RHS->isZero())
-          return Base->Constant(0, Expr::Bool); //Base->Constant(0, Width);
-      }
-    */
+      // X < 0 ==> false
+      if (RHS->isZero())
+        return Builder->False();
+
       return Base->Ult(LHS, RHS);
     }
 
     ref<Expr> Ult(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
+      
+      if (!LHS->compare(*RHS.get())) {
+        // X < X => false
+        return Builder->False();
+      }
+
       return Base->Ult(LHS, RHS);
     }
 
+    ref<Expr> Ule(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Ule(LHS, RHS);
+    }
 
+    ref<Expr> Ule(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      return Base->Ule(LHS, RHS);
+    }
+
+    ref<Expr> Ule(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      
+      if (!LHS->compare(*RHS.get())) {
+        // X <= X => true
+        return Builder->True();
+      }
+      
+      return Base->Ule(LHS, RHS);
+    }
+
+    ref<Expr> Slt(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Slt(LHS, RHS);
+    }
+
+    ref<Expr> Slt(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      return Base->Slt(LHS, RHS);
+    }
+
+    ref<Expr> Slt(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      
+      if (!LHS->compare(*RHS.get())) {
+        // X <s X => false
+        return Builder->False();
+      }
+      
+      return Base->Slt(LHS, RHS);
+    }
+
+    ref<Expr> Sle(const ref<ConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      return Base->Sle(LHS, RHS);
+    }
+
+    ref<Expr> Sle(const ref<NonConstantExpr> &LHS, 
+                 const ref<ConstantExpr> &RHS) {
+      return Base->Sle(LHS, RHS);
+    }
+
+    ref<Expr> Sle(const ref<NonConstantExpr> &LHS, 
+                 const ref<NonConstantExpr> &RHS) {
+      
+      if (!LHS->compare(*RHS.get())) {
+        // X <=s X => true
+        return Builder->True();
+      }
+      
+      return Base->Sle(LHS, RHS);
+    }
   };
 
   typedef ConstantSpecializedExprBuilder<ConstantFoldingBuilder>
@@ -1279,7 +1420,7 @@ namespace {
           return RHS;
 
         // false == X (not)
-	return Base->Not(RHS);
+	      return Base->Not(RHS);
       }
 
       return Base->Eq(LHS, RHS);
