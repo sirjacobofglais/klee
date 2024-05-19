@@ -284,13 +284,15 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep "(query .. false .(w8 255)." %t2
 (query [] false [(AShr w8 255 (Read w8 0 a))])
 
+# REVERTED: Incorrect. Equated - and ~ and they're not the same
 # Check -- 0 - X => -X
 # RUN: grep -A 2 "# Query 55$" %t > %t2
-# RUN: grep "(query .. false .(Not w8 (Read w8 0 a))" %t2
+# RUN: grep "(query .. false .." %t2
 (query [] false [(Sub w8 0 (Read w8 0 a))])
 
 # Check -- X - X => 0
 # RUN: grep -A 2 "# Query 56$" %t > %t2
+# RUN: cat %t2
 # RUN: grep "(query .. false .(w8 0)." %t2
 (query [] false [(Sub w8 X:(Read w8 0 a) X)])
 
@@ -389,6 +391,7 @@ array a[64] : w32 -> w8 = symbolic
 
 # Check --  X | ~(X & Y) => -1
 # RUN: grep -A 2 "# Query 75$" %t > %t2
+# RUN: cat %t2
 # RUN: grep "(query .. false .(w8 255)." %t2
 (query [] false [(Or w8 X:(Read w8 0 a) (Not w8 (And w8 X (Read w8 1 a))))])
 
@@ -436,3 +439,132 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep -A 2 "# Query 84$" %t > %t2
 # RUN: grep "(query .. false .false." %t2
 (query [] false [(Ult X:(Read w8 0 a) (w8 0))])
+
+# Check -- Select Y X X => X
+# RUN: grep -A 2 "# Query 85$" %t > %t2
+# RUN: grep "(query .. false .(Read w8 0 a)." %t2
+(query [] false [(Select w8 (Eq w8 0 (Read w8 1 a)) X:(Read w8 0 a) X)])
+
+# Check -- Select X + X => X << 1
+# RUN: grep -A 2 "# Query 86$" %t > %t2
+# RUN: grep "(query .. false .(Shl w8 (Read w8 0 a) 1)." %t2
+(query [] false [(Add w8 X:(Read w8 0 a) X)])
+
+# Check -- (X + Y) + Y ==> X + (Y << 1)  (via X + (Y + Y))
+# RUN: grep -A 3 "# Query 87$" %t > %t2
+# RUN: grep "(query .. false .(Add w8 (Read w8 0 a)" %t2
+# RUN: grep                          "(Shl w8 (Read w8 1 a) 1" %t2
+(query [] false [(Add w8 (Add w8 (Read w8 0 a) (Read w8 1 a)) (Read w8 1 a))])
+
+# By composition: no specific rule
+# Check -- (X + C1) + (C2 - B) ==> (A - B) + (C1 + C2)
+# RUN: grep -A 3 "# Query 88$" %t > %t2
+# RUN: grep "(query .. false .(Add w8 7" %t2 
+# RUN: grep "(Sub w8 (Read w8 0 a) (Read w8 1 a)))." %t2
+(query [] false [(Add w8 (Add w8 (Read w8 0 a ) 3) (Sub w8 4 (Read w8 1 a)))])
+
+# Check -- (0 + X) == X => true 
+# RUN: grep -A 3 "# Query 89$" %t > %t2
+# RUN: grep "(query .. false .true." %t2 
+(query [] false [(Eq w8 (Add w8 X:(Read w8 0 a ) 0) X)])
+
+# Check -- X == (1 + X) => false 
+# RUN: grep -A 3 "# Query 90$" %t > %t2
+# RUN: grep "(query .. false .false." %t2 
+(query [] false [(Eq w8 X:(Read w8 0 a) (Add w8 1 X))])
+
+# Check -- (1 - X) == X => false
+# RUN: grep -A 3 "# Query 91$" %t > %t2
+# RUN: grep "(query .. false .false." %t2 
+(query [] false [(Eq w8 (Sub w8 X:(Read w8 0 a) 1) X)])
+
+# Check -- X == (0 - X) => true 
+# RUN: grep -A 3 "# Query 92$" %t > %t2
+# RUN: grep "(query .. false .true." %t2 
+(query [] false [(Eq w8 X:(Read w8 0 a) (Sub w8 0 X))])
+
+# Check -- X ^ ~X => -1 
+# RUN: grep -A 3 "# Query 93$" %t > %t2
+# RUN: grep "(query .. false .(w8 255)." %t2 
+(query [] false [(Xor w8 X:(Read w8 0 a) (Not w8 X))])
+
+# Check --  (X ^ Y) | (X | Y) => (X | Y)
+# RUN: grep -A 2 "# Query 94$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(Or w8 (Read w8 0 a) (Read w8 1 a))." %t2
+(query [] false [(Or w8 (Xor w8 X:(Read w8 0 a) Y:(Read w8 1 a)) (Or w8 X Y))])
+
+# Check --  (Y | X) | (X ^ Y) => (Y | X)
+# RUN: grep -A 2 "# Query 95$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(Or w8 (Read w8 1 a) (Read w8 0 a))." %t2
+(query [] false [(Or w8 (Or w8 X:(Read w8 1 a) Y:(Read w8 0 a)) (Xor w8 X Y))])
+
+# Check --  ~(X ^ Y) | (X | Y) => -1
+# RUN: grep -A 2 "# Query 96$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(w8 255)." %t2
+(query [] false [(Or w8 (Not w8 (Xor w8 X:(Read w8 0 a) Y:(Read w8 1 a))) (Or w8 X Y))])
+
+# Check --  (Y | X) | ~(X ^ Y) => -1
+# RUN: grep -A 2 "# Query 97$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(w8 255)." %t2
+(query [] false [(Or w8 (Or w8 X:(Read w8 1 a) Y:(Read w8 0 a)) (Not w8 (Xor w8 X Y)))])
+
+# Check --  (X | Y) <u X => false
+# RUN: grep -A 2 "# Query 98$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .false." %t2
+(query [] false [(Ult w8 (Or w8 X:(Read w8 1 a) Y:(Read w8 0 a)) X)])
+
+# Check --  X <=u (X | Y) => true
+# RUN: grep -A 2 "# Query 99$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .true." %t2
+(query [] false [(Ule w8 X:(Read w8 0 a) (Or w8 X Y:(Read w8 0 a)))])
+
+# Check --  (X URem Y) == Y => false
+# RUN: grep -A 2 "# Query 100$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .false." %t2
+(query [] false [(Eq w8 (URem w8 X:(Read w8 0 a) Y:(Read w8 1 a)) Y)])
+
+# Check --  (X URem Y) < Y => true
+# RUN: grep -A 2 "# Query 101$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .true." %t2
+(query [] false [(Ult w8 (URem w8 X:(Read w8 0 a) Y:(Read w8 1 a)) Y)])
+
+# Check --  Y <= (X URem Y) => false
+# RUN: grep -A 2 "# Query 102$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .false." %t2
+(query [] false [(Ule w8 Y:(Read w8 1 a) (URem w8 X:(Read w8 0 a) Y))])
+
+# Check --  (X URem Y) <= X => true
+# RUN: grep -A 2 "# Query 103$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .true." %t2
+(query [] false [(Ule w8 (URem w8 X:(Read w8 0 a) Y:(Read w8 0  a)) X)])
+
+# Check --  X < (X URem Y) => false
+# RUN: grep -A 2 "# Query 104$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .false." %t2
+(query [] false [(Ult w8 X:(Read w8 0 a) (URem w8 X Y:(Read w8 1 a)))])
+
+# Check --  X <u (X & Y) => false
+# RUN: grep -A 2 "# Query 105$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .false." %t2
+(query [] false [(Ult w8 X:(Read w8 0 a) (And w8 X Y:(Read w8 1 a)))])
+
+# Check -- (Y & X) <= X => true
+# RUN: grep -A 2 "# Query 106$" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .true." %t2
+(query [] false [(Ule w8 (URem w8 X:(Read w8 0 a) Y:(Read w8 1 a)) X)])
+
+
+

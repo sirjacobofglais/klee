@@ -690,6 +690,33 @@ namespace {
     }
   };
 
+  bool exactMatch(Expr *LHS, Expr *RHS) {
+    return !LHS->compare(*RHS);
+  }
+
+  bool hasExactChild(BinaryExpr *BE, ref<Expr> match) {
+    return exactMatch(BE->left.get(), match.get()) || exactMatch(BE->right.get(), match.get());
+  }
+
+  bool matchURemDividend(ref<Expr> expr, ref<Expr> match) {
+    if (BinaryExpr *BE = dyn_cast<BinaryExpr>(expr))
+      return (BE->getKind() == Expr::URem &&
+             exactMatch(BE->right.get(), match.get()));
+    return false;
+  }
+
+  bool matchURemDivisor(ref<Expr> expr, ref<Expr> match) {
+    if (BinaryExpr *BE = dyn_cast<BinaryExpr>(expr))
+      return (BE->getKind() == Expr::URem &&
+             exactMatch(BE->left.get(), match.get()));
+    return false;
+  }
+
+  bool matchBinaryExprsChildren(BinaryExpr *LHS, BinaryExpr *RHS) {
+    return ((exactMatch(LHS->left.get(), RHS->left.get()) && exactMatch(LHS->right.get(), RHS->right.get()))
+            || (exactMatch(LHS->left.get(), RHS->right.get()) && exactMatch(LHS->right.get(), RHS->left.get()))); 
+  }
+
   class ConstantFoldingBuilder :
     public ChainedBuilder {
   public:
@@ -738,14 +765,28 @@ namespace {
 
     ref<Expr> Add(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      if (exactMatch(LHS.get(), RHS.get())) {
+        // X + X => X << 1
+        return Builder->Shl(LHS, Builder->Constant(1, LHS->getWidth()));
+      }
+  
       switch (LHS->getKind()) {
       default: break;
 
       case Expr::Add: {
         BinaryExpr *BE = cast<BinaryExpr>(LHS);
         // (X + Y) + Z ==> X + (Y + Z)
-        return Builder->Add(BE->left,
+
+        if (exactMatch(BE->left.get(), RHS.get()))
+        // Bring identical terms together as will match further
+          return Builder->Add(BE->right,
+                            Builder->Add(BE->left, RHS)); 
+        else {
+          return Builder->Add(BE->left,
                             Builder->Add(BE->right, RHS));
+        }
+        break;
       }
 
       case Expr::Sub: {
@@ -784,7 +825,7 @@ namespace {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
           // X + (C_0 - Y) ==> C_0 + (X - Y)
           return Builder->Add(CE, Builder->Sub(LHS, BE->right));
-        else if (!BE->right->compare(*LHS.get()))
+        else if (exactMatch(BE->right.get(), LHS.get()))
           // X + (Y - X) => Y
           return BE->left;
         
@@ -808,10 +849,6 @@ namespace {
 
     ref<Expr> Sub(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
-
-      // 0 - X => -X
-      if (LHS->isZero())
-        return Builder->Not(RHS);
 
       switch (RHS->getKind()) {
       default: break;
@@ -851,8 +888,9 @@ namespace {
     ref<Expr> Sub(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
 
-      if (!LHS->compare(*RHS.get()))
-        return Base->Constant(0, 8);
+      if (exactMatch(LHS.get(), RHS.get()))
+        // X - X => 0
+        return Base->Zero(LHS->getWidth());
 
       switch (LHS->getKind()) {
       default: break;
@@ -976,7 +1014,7 @@ namespace {
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
         // X % 1 => 0
-        return Builder->Constant(0, RHS->getWidth());
+        return Builder->Zero(RHS->getWidth());
       }
 
       return Base->URem(LHS, RHS);
@@ -1001,7 +1039,7 @@ namespace {
                   const ref<ConstantExpr> &RHS) {
       if (RHS->isOne()) {
         // X % 1 => 0
-        return Builder->Constant(0, RHS->getWidth());
+        return Builder->Zero(LHS->getWidth());
       }
 
       return Base->SRem(LHS, RHS);
@@ -1045,7 +1083,7 @@ namespace {
     ref<Expr> And(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
 
-      if (!LHS->compare(*RHS.get()))
+      if (exactMatch(LHS.get(), RHS.get()))
         // X & X => X
         return LHS;
 
@@ -1055,7 +1093,7 @@ namespace {
         case Expr::Or: {
           BinaryExpr *BE = cast<BinaryExpr>(LHS);
 
-          if(!BE->left->compare(*RHS.get()) || !BE->right->compare(*RHS.get()))
+          if (hasExactChild(BE, RHS))
             // (X | Y) & X => X
             // (Y | X) & X => X
             return RHS;
@@ -1077,7 +1115,7 @@ namespace {
         case Expr::Or: {
           BinaryExpr *BE = cast<BinaryExpr>(RHS);
 
-          if(!BE->left->compare(*LHS.get()) || !BE->right->compare(*LHS.get()))
+          if(hasExactChild(BE, LHS))
             // X & (Y | X) => X
             // X & (X | Y) => X
             return LHS;
@@ -1115,7 +1153,7 @@ namespace {
     ref<Expr> Or(const ref<NonConstantExpr> &LHS,
                  const ref<NonConstantExpr> &RHS) {
 
-      if (!LHS->compare(*RHS.get()))
+      if (exactMatch(LHS.get(), RHS.get()))
         // X | X => X
         return LHS;
       
@@ -1125,7 +1163,7 @@ namespace {
         case Expr::And: {
           BinaryExpr *BE = cast<BinaryExpr>(LHS);
 
-          if(!BE->left->compare(*RHS.get()) || !BE->right->compare(*RHS.get()))
+          if(hasExactChild(BE, RHS))
             // (X & Y) | X => X
             // (Y & X) | X => X
             return RHS;
@@ -1135,22 +1173,77 @@ namespace {
         case Expr::Not: {
           NotExpr *NE = cast<NotExpr>(LHS);
           // ~X | X ==> -1
-          if (!(*RHS.get()).compare(*NE->expr.get())) {
+          if (exactMatch(RHS.get(), NE->expr.get())) {
             return Builder->AllOnes(RHS->getWidth());
           };
 
           switch(NE->expr->getKind()) {
             default: break;
 
-            case Expr::And:{
+            case Expr::And: {
               BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
 
-              // X | ~(X & Y) => -1; X | ~(Y & X) => -1
-              if (!RHS->compare(*NBE->left.get()) || !RHS->compare(*NBE->right.get())) {
+              //  ~(X & Y) | X => -1; ~(Y & X) | X => -1
+              if (hasExactChild(NBE, RHS)) {
                 return Builder->AllOnes(RHS->getWidth());
               }
+              break;
+            }
+
+            case Expr::Xor: {
+              BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
+
+              if (RHS->getKind() == Expr::Or) {
+                BinaryExpr *RBE = cast<BinaryExpr>(RHS);
+
+                if (matchBinaryExprsChildren(NBE, RBE))
+                  // ~(A ^ B) | (A | B) => -1 and commut.
+                  return Builder->AllOnes(LHS->getWidth());
+              }
+
+              break;
             }
           }
+          break;
+        }
+
+        case Expr::Xor: {
+          BinaryExpr *LBE = cast<BinaryExpr>(LHS);
+
+          if (RHS->getKind() == Expr::Or) {
+            BinaryExpr *RBE = cast<BinaryExpr>(RHS);
+
+            if (matchBinaryExprsChildren(LBE, RBE))
+               // (A ^ B) | (A | B) => (A | B) and commut.
+               return RHS;
+          }
+
+          break;
+        }
+
+        case Expr::Or: {
+          BinaryExpr *LBE = cast<BinaryExpr>(LHS);
+
+          if (RHS->getKind() == Expr::Xor) {
+            BinaryExpr * RBE = cast<BinaryExpr>(RHS);
+
+            if (matchBinaryExprsChildren(LBE, RBE))
+               // (A | B) | (A ^ B) => (A | B) and commut.
+               return LHS;
+          }
+
+          if (RHS->getKind() == Expr::Not) {
+            NotExpr *NBE = cast<NotExpr>(RHS);
+
+            if (NBE->expr->getKind() == Expr::Xor) {
+            BinaryExpr *RBE = cast<BinaryExpr>(NBE->expr);
+
+            if (matchBinaryExprsChildren(LBE, RBE))
+               // (A | B) | ~(A ^ B) => -1 and commut.
+               return Builder->AllOnes(LHS->getWidth());
+            }
+          }
+          break;
         }
       }
 
@@ -1160,7 +1253,7 @@ namespace {
         case Expr::And: {
           BinaryExpr *BE = cast<BinaryExpr>(RHS);
 
-          if(!BE->left->compare(*LHS.get()) || !BE->right->compare(*LHS.get()))
+          if(hasExactChild(BE, LHS))
             // X | (Y & X) => X
             // X | (X & Y) => X
             return LHS;
@@ -1170,7 +1263,7 @@ namespace {
         case Expr::Not: {
           NotExpr *NE = cast<NotExpr>(RHS);
           // ~X | X ==> -1
-          if (!LHS->compare(*NE->expr.get())) {
+          if (exactMatch(LHS.get(), NE->expr.get())) {
             return Builder->AllOnes(LHS->getWidth());
           }
 
@@ -1181,7 +1274,7 @@ namespace {
               BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
 
               // X | ~(X & Y) => -1; X | ~(Y & X) => -1
-              if (!LHS->compare(*NBE->left.get()) || !LHS->compare(*NBE->right.get())) {
+              if (hasExactChild(NBE, LHS)) {
                 return Builder->AllOnes(LHS->getWidth());
               }
             }
@@ -1210,9 +1303,35 @@ namespace {
     ref<Expr> Xor(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
       
-      if (!LHS->compare(*RHS.get()))
+      if (exactMatch(LHS.get(), RHS.get()))
         // X ^ X => 0
-        return Builder->Constant(0, LHS->getWidth());
+        return Builder->Zero(LHS->getWidth());
+
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::Not: {
+          NotExpr * NE = cast<NotExpr>(LHS);
+          
+          if (exactMatch(NE->expr.get(), RHS.get())) 
+            // X ^ ~X => -1
+            return Builder->AllOnes(RHS->getWidth());
+          break;
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Not: {
+          NotExpr * NE = cast<NotExpr>(RHS);
+          
+          if (exactMatch(NE->expr.get(), LHS.get())) 
+            // X ^ ~X => -1
+            return Builder->AllOnes(LHS->getWidth());
+          break;
+        }
+      }
 
       return Base->Xor(LHS, RHS);
     }
@@ -1304,9 +1423,65 @@ namespace {
     ref<Expr> Eq(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
 
-      if (!LHS->compare(*RHS.get())) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // X == X => true
         return Builder->True();
+      }
+
+      if (matchURemDividend(LHS, RHS))
+        // (X URem Y) == Y => false
+        return Builder->False();
+
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::Add: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left)) {
+            if (exactMatch(BE->right.get(), RHS.get()))
+              // C + X == X => C.isZero()
+              return Builder->Constant(CE->isZero(), Expr::Bool);
+          }
+          break;
+        }
+
+        case Expr::Sub: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left)) {
+            if (exactMatch(BE->right.get(), RHS.get()))
+              // C - X == X => C.isZero()
+              return Builder->Constant(CE->isZero(), Expr::Bool);
+          }
+          break;
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Add: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left)) {
+            if (exactMatch(BE->right.get(), LHS.get()))
+              // X == C + X => C.isZero()
+              return Builder->Constant(CE->isZero(), Expr::Bool);
+          }
+          break;
+        }
+
+        case Expr::Sub: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left)) {
+            if (exactMatch(BE->right.get(), LHS.get()))
+              // X == C - X => C.isZero()
+              return Builder->Constant(CE->isZero(), Expr::Bool);
+          }
+        }
+        break;
       }
 
       return Base->Eq(LHS, RHS);
@@ -1330,9 +1505,47 @@ namespace {
     ref<Expr> Ult(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
       
-      if (!LHS->compare(*RHS.get())) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // X < X => false
         return Builder->False();
+      }
+
+      if (matchURemDividend(LHS, RHS)){
+        // (X URem Y) <u Y = true
+        return Builder->True();
+      }
+
+      if (matchURemDividend(RHS, LHS)){
+        // Y <u (X URem Y) = false
+        return Builder->False();
+      }
+      
+      if (matchURemDivisor(RHS, LHS)){
+        // X <u (X URem Y) = false
+        return Builder->False();
+      }
+
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::Or: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+
+          // (X | Y) <u X => false
+          return Base->Constant(!hasExactChild(BE, RHS), Expr::Bool);
+          break;
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // X < (X & Y) => false
+          return Builder->Constant(!hasExactChild(BE, LHS), Expr::Bool);
+          break;
+        }
       }
 
       return Base->Ult(LHS, RHS);
@@ -1351,9 +1564,47 @@ namespace {
     ref<Expr> Ule(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
       
-      if (!LHS->compare(*RHS.get())) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // X <= X => true
         return Builder->True();
+      }
+
+      if (matchURemDividend(LHS, RHS)){
+        // (X URem Y) <=u Y = true
+        return Builder->True();
+      }
+
+      if (matchURemDividend(RHS, LHS)){
+        // Y <=u (X URem Y) = false
+        return Builder->False();
+      }
+
+      
+      if (matchURemDivisor(LHS, RHS)){
+        // (X URem Y) <=u X = true
+        return Builder->True();
+      }
+
+      switch (LHS->getKind()) {
+        default: break;
+
+        case Expr::And: {
+          BinaryExpr *BE = cast<BinaryExpr>(LHS);
+
+          // x <= (X | Y) => true
+          return Base->Constant(hasExactChild(BE, RHS), Expr::Bool);
+        }
+      }
+
+      switch (RHS->getKind()) {
+        default: break;
+
+        case Expr::Or: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+
+          // x <= (X | Y) => true
+          return Base->Constant(hasExactChild(BE, LHS), Expr::Bool);
+        }
       }
       
       return Base->Ule(LHS, RHS);
@@ -1372,7 +1623,7 @@ namespace {
     ref<Expr> Slt(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
       
-      if (!LHS->compare(*RHS.get())) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // X <s X => false
         return Builder->False();
       }
@@ -1393,12 +1644,23 @@ namespace {
     ref<Expr> Sle(const ref<NonConstantExpr> &LHS, 
                  const ref<NonConstantExpr> &RHS) {
       
-      if (!LHS->compare(*RHS.get())) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // X <=s X => true
         return Builder->True();
       }
       
       return Base->Sle(LHS, RHS);
+    }
+
+    ref<Expr> Select(const ref<Expr> &Cond, 
+                     const ref<Expr> &LHS, 
+                     const ref<Expr> &RHS) {
+        
+      if (LHS.get(), RHS.get()) {
+        // Select Y X X => X
+        return LHS;
+      }
+      return Base->Select(Cond, LHS, RHS);
     }
   };
 
@@ -1436,6 +1698,8 @@ namespace {
       // X == X ==> true
       if (LHS == RHS)
           return Builder->True();
+        
+      
 
       return Base->Eq(LHS, RHS);
     }
@@ -1489,3 +1753,14 @@ ExprBuilder *klee::createConstantFoldingExprBuilder(ExprBuilder *Base) {
 ExprBuilder *klee::createSimplifyingExprBuilder(ExprBuilder *Base) {
   return new SimplifyingExprBuilder(Base);
 }
+
+
+/* 
+Expr *matchNot(Expr *e) {
+  if (e->getKind() == Expr::Not)
+    return cast<NotExpr>(e)->expr.get();
+  else return nullptr;
+}
+
+*/
+
