@@ -49,18 +49,6 @@ namespace {
                    llvm::cl::desc("Use hash-consing during STP query construction (default=true)"),
                    llvm::cl::init(true),
                    llvm::cl::cat(klee::ExprCat));
-
-  enum BuilderKinds {
-  DefaultBuilder,
-  ConstantFoldingBuilder,
-  SimplifyingBuilder
-  };
-
-
-  llvm::cl::opt<BuilderKinds> BuilderKind(
-    "builder", llvm::cl::desc("Expression builder:"),
-    llvm::cl::init(DefaultBuilder),
-    llvm::cl::cat(klee::ExprCat));
 }
 
 ///
