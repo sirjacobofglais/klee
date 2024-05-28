@@ -32,5 +32,5 @@ autoconf/autom4te.cache/
 autom4te.cache/
 
 
-#Local script
-commitKlee.sh
+.vscode/*
+
