@@ -6,12 +6,14 @@
 
 int add_or(int x, int y, int z) {
 
+  for (int i = z; i < y; i+=x) {
   int a = x | y;
   int b = x ^ y;
 
   if ((a | b) == 0 && y == y)
-     return 0;
-  else return 1;
+     return i;
+  }
+  return 1;
 } 
 
 int main() {

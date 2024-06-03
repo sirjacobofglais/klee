@@ -76,6 +76,10 @@ namespace klee {
     ref<Expr> AllOnes(Expr::Width W) {
       return Constant(llvm::APInt::getAllOnes(W));
     }
+
+    ref<Expr> eqZero(ref<Expr> e) {
+      return Eq(e, Constant(0, e->getWidth()));
+    }
   };
 
   /// createDefaultExprBuilder - Create an expression builder which does no

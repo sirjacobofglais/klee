@@ -700,12 +700,14 @@ namespace {
     // Used to mark Optimising rewrites only, not canonicalisations
     ref<Expr> record_opt(ref<Expr> val) {
 
+      llvm::errs() << "record opt";
       ++stats::exprOpts;
       return val;
     }
 
     // Used to mark rewrites that produce a constant
     ref<Expr> record_const_opt(ref<Expr> val) {
+      llvm::errs() << "record const opt";
       ++stats::constOpts;
       return record_opt(val);
     }

@@ -24,6 +24,7 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -117,6 +118,7 @@ private:
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
   std::unique_ptr<ExecutionTree> executionTree;
+  ExprBuilder *exprBuilder;
 
   /// Used to track states that have been added during the current
   /// instructions step. 

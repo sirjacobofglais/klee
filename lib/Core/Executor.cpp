@@ -35,6 +35,7 @@
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Expr/ExprUtil.h"
@@ -483,6 +484,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
       pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      exprBuilder(createSimplifyingExprBuilder(createConstantFoldingExprBuilder(createDefaultExprBuilder()))),
       replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
@@ -1030,7 +1032,7 @@ ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
     os << current.prevPC->getSourceLocation();
     klee_warning_once(0, "%s", os.str().c_str());
 
-    addConstraint(current, EqExpr::create(value, condition));
+    addConstraint(current, exprBuilder->Eq(value, condition));
     condition = value;
   }
   return condition;
@@ -1076,7 +1078,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
           addConstraint(current, condition);
         } else  {
           res = Solver::False;
-          addConstraint(current, Expr::createIsZero(condition));
+          addConstraint(current, exprBuilder->eqZero(condition));
         }
       }
     } else if (res==Solver::Unknown) {
@@ -1088,7 +1090,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
           addConstraint(current, condition);
           res = Solver::True;        
         } else {
-          addConstraint(current, Expr::createIsZero(condition));
+          addConstraint(current, exprBuilder->eqZero(condition));
           res = Solver::False;
         }
         ++stats::inhibitedForks;
@@ -1123,7 +1125,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       assert(trueSeed || falseSeed);
       
       res = trueSeed ? Solver::True : Solver::False;
-      addConstraint(current, trueSeed ? condition : Expr::createIsZero(condition));
+      addConstraint(current, trueSeed ? condition : exprBuilder->eqZero(condition));
     }
   }
 
@@ -1216,7 +1218,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     }
 
     addConstraint(*trueState, condition);
-    addConstraint(*falseState, Expr::createIsZero(condition));
+    addConstraint(*falseState, exprBuilder->eqZero(condition));
 
     // Kinda gross, do we even really still want this option?
     if (MaxDepth && MaxDepth<=trueState->depth) {
@@ -1303,7 +1305,7 @@ ref<Expr> Executor::toUnique(const ExecutionState &state,
     e = optimizer.optimizeExpr(e, true);
     solver->setTimeout(coreSolverTimeout);
     if (solver->getValue(state.constraints, e, value, state.queryMetaData)) {
-      ref<Expr> cond = EqExpr::create(e, value);
+      ref<Expr> cond = exprBuilder->Eq(e, value);
       cond = optimizer.optimizeExpr(cond, false);
       if (solver->mustBeTrue(state.constraints, cond, isTrue,
                              state.queryMetaData) &&
@@ -1343,7 +1345,7 @@ ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
     klee_warning_once(reason.c_str(), "%s", os.str().c_str());
 
   if (concretize)
-    addConstraint(state, EqExpr::create(e, cvalue));
+    addConstraint(state, exprBuilder->Eq(e, cvalue));
 
   return cvalue;
 }
@@ -1394,7 +1396,7 @@ void Executor::executeGetValue(ExecutionState &state,
     std::vector< ref<Expr> > conditions;
     for (std::set< ref<Expr> >::iterator vit = values.begin(), 
            vie = values.end(); vit != vie; ++vit)
-      conditions.push_back(EqExpr::create(e, *vit));
+      conditions.push_back(exprBuilder->Eq(e, *vit));
 
     std::vector<ExecutionState*> branches;
     branch(state, conditions, branches, BranchType::GetVal);
@@ -1701,7 +1703,7 @@ ref<klee::ConstantExpr> Executor::getEhTypeidFor(ref<Expr> type_info) {
   }
   // +1 because typeids must always be positive, so they can be distinguished
   // from 'no landingpad clause matched' which has value 0
-  auto res = ConstantExpr::create(eh_type_iterator - std::begin(eh_typeids) + 1,
+  auto res = exprBuilder->Constant(eh_type_iterator - std::begin(eh_typeids) + 1,
                                   Expr::Int32);
   return res;
 }
@@ -1783,25 +1785,25 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       uint64_t moneVal = APInt(bw, -1, true).getZExtValue();
       uint64_t sminVal = APInt::getSignedMinValue(bw).getZExtValue();
 
-      ref<ConstantExpr> zero = ConstantExpr::create(0, bw);
-      ref<ConstantExpr> mone = ConstantExpr::create(moneVal, bw);
-      ref<ConstantExpr> smin = ConstantExpr::create(sminVal, bw);
+      ref<ConstantExpr> zero = exprBuilder->Constant(0, bw);
+      ref<ConstantExpr> mone = exprBuilder->Constant(moneVal, bw);
+      ref<ConstantExpr> smin = exprBuilder->Constant(sminVal, bw);
 
       if (poison->isTrue()) {
-        ref<Expr> issmin = EqExpr::create(op, smin);
+        ref<Expr> issmin = exprBuilder->Eq(op, smin);
         if (issmin->isTrue())
           return terminateStateOnExecError(
               state, "llvm.abs called with poison and INT_MIN");
       }
 
       // conditions to flip the sign: INT_MIN < op < 0
-      ref<Expr> negative = SltExpr::create(op, zero);
-      ref<Expr> notsmin = NeExpr::create(op, smin);
-      ref<Expr> cond = AndExpr::create(negative, notsmin);
+      ref<Expr> negative = exprBuilder->Slt(op, zero);
+      ref<Expr> notsmin = exprBuilder->Ne(op, smin);
+      ref<Expr> cond = exprBuilder->And(negative, notsmin);
 
       // flip and select the result
-      ref<Expr> flip = MulExpr::create(op, mone);
-      ref<Expr> result = SelectExpr::create(cond, flip, op);
+      ref<Expr> flip = exprBuilder->Mul(op, mone);
+      ref<Expr> result = exprBuilder->Select(cond, flip, op);
 
       bindLocal(ki, state, result);
       break;
@@ -1821,15 +1823,15 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
 
       ref<Expr> cond = nullptr;
       if (f->getIntrinsicID() == Intrinsic::smax)
-        cond = SgtExpr::create(op1, op2);
+        cond = exprBuilder->Sgt(op1, op2);
       else if (f->getIntrinsicID() == Intrinsic::smin)
-        cond = SltExpr::create(op1, op2);
+        cond = exprBuilder->Slt(op1, op2);
       else if (f->getIntrinsicID() == Intrinsic::umax)
-        cond = UgtExpr::create(op1, op2);
+        cond = exprBuilder->Ugt(op1, op2);
       else // (f->getIntrinsicID() == Intrinsic::umin)
-        cond = UltExpr::create(op1, op2);
+        cond = exprBuilder->Ult(op1, op2);
 
-      ref<Expr> result = SelectExpr::create(cond, op1, op2);
+      ref<Expr> result = exprBuilder->Select(cond, op1, op2);
       bindLocal(ki, state, result);
       break;
     }
@@ -1843,19 +1845,19 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       unsigned w = op1->getWidth();
       assert(w == op2->getWidth() && "type mismatch");
       assert(w == op3->getWidth() && "type mismatch");
-      ref<Expr> c = ConcatExpr::create(op1, op2);
+      ref<Expr> c = exprBuilder->Concat(op1, op2);
       // op3 = zeroExtend(op3 % w)
-      op3 = URemExpr::create(op3, ConstantExpr::create(w, w));
-      op3 = ZExtExpr::create(op3, w+w);
+      op3 = exprBuilder->URem(op3, exprBuilder->Constant(w, w));
+      op3 = exprBuilder->ZExt(op3, w+w);
       if (f->getIntrinsicID() == Intrinsic::fshl) {
         // shift left and take top half
-        ref<Expr> s = ShlExpr::create(c, op3);
-        bindLocal(ki, state, ExtractExpr::create(s, w, w));
+        ref<Expr> s = exprBuilder->Shl(c, op3);
+        bindLocal(ki, state, exprBuilder->Extract(s, w, w));
       } else {
         // shift right and take bottom half
         // note that LShr and AShr will have same behaviour
-        ref<Expr> s = LShrExpr::create(c, op3);
-        bindLocal(ki, state, ExtractExpr::create(s, 0, w));
+        ref<Expr> s = exprBuilder->LShr(c, op3);
+        bindLocal(ki, state, exprBuilder->Extract(s, 0, w));
       }
       break;
     }
@@ -1884,19 +1886,19 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         executeMemoryOperation(
             state, true, 
             arguments[0],
-            ConstantExpr::create(48, 32), 0); // gp_offset
+            exprBuilder->Constant(48, 32), 0); // gp_offset
         executeMemoryOperation(
             state, true,
-            AddExpr::create(arguments[0], ConstantExpr::create(4, 64)),
-            ConstantExpr::create(304, 32), 0); // fp_offset
+            exprBuilder->Add(arguments[0], exprBuilder->Constant(4, 64)),
+            exprBuilder->Constant(304, 32), 0); // fp_offset
         executeMemoryOperation(
             state, true,
-            AddExpr::create(arguments[0], ConstantExpr::create(8, 64)),
+            exprBuilder->Add(arguments[0], exprBuilder->Constant(8, 64)),
             sf.varargs->getBaseExpr(), 0); // overflow_arg_area
         executeMemoryOperation(
             state, true,
-            AddExpr::create(arguments[0], ConstantExpr::create(16, 64)),
-            ConstantExpr::create(0, 64), 0); // reg_save_area
+            exprBuilder->Add(arguments[0], exprBuilder->Constant(16, 64)),
+            exprBuilder->Constant(0, 64), 0); // reg_save_area
       }
       break;
     }
@@ -2196,9 +2198,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             // XXX need to check other param attrs ?
             bool isSExt = cb.hasRetAttr(llvm::Attribute::SExt);
             if (isSExt) {
-              result = SExtExpr::create(result, to);
+              result = exprBuilder->SExt(result, to);
             } else {
-              result = ZExtExpr::create(result, to);
+              result = exprBuilder->ZExt(result, to);
             }
           }
 
@@ -2273,10 +2275,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
       // create address expression
       const auto PE = Expr::createPointer(reinterpret_cast<std::uint64_t>(d));
-      ref<Expr> e = EqExpr::create(address, PE);
+      ref<Expr> e = exprBuilder->Eq(address, PE);
 
       // exclude address from errorCase
-      errorCase = AndExpr::create(errorCase, Expr::createIsZero(e));
+      errorCase = exprBuilder->And(errorCase, exprBuilder->eqZero(e));
 
       // check feasibility
       bool result;
@@ -2358,14 +2360,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                it = expressionOrder.begin(),
                itE = expressionOrder.end();
            it != itE; ++it) {
-        ref<Expr> match = EqExpr::create(cond, it->first);
+        ref<Expr> match = exprBuilder->Eq(cond, it->first);
 
         // skip if case has same successor basic block as default case
         // (should work even with phi nodes as a switch is a single terminating instruction)
         if (it->second == si->getDefaultDest()) continue;
 
         // Make sure that the default value does not contain this target's value
-        defaultValue = AndExpr::create(defaultValue, Expr::createIsZero(match));
+        defaultValue = exprBuilder->And(defaultValue, exprBuilder->eqZero(match));
 
         // Check if control flow could take this case
         bool result;
@@ -2387,7 +2389,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
               branchTargets.insert(std::make_pair(
                   caseSuccessor, ConstantExpr::alloc(0, Expr::Bool)));
 
-          res.first->second = OrExpr::create(match, res.first->second);
+          res.first->second = exprBuilder->Or(match, res.first->second);
 
           // Only add basic blocks which have not been target of a branch yet
           if (res.second) {
@@ -2500,9 +2502,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
               // XXX need to check other param attrs ?
               bool isSExt = cb.paramHasAttr(i, llvm::Attribute::SExt);
               if (isSExt) {
-                arguments[i] = SExtExpr::create(arguments[i], to);
+                arguments[i] = exprBuilder->SExt(arguments[i], to);
               } else {
-                arguments[i] = ZExtExpr::create(arguments[i], to);
+                arguments[i] = exprBuilder->ZExt(arguments[i], to);
               }
             }
           }
@@ -2528,7 +2530,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             solver->getValue(free->constraints, v, value, free->queryMetaData);
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
-        StatePair res = fork(*free, EqExpr::create(v, value), true, BranchType::Call);
+        StatePair res = fork(*free, exprBuilder->Eq(v, value), true, BranchType::Call);
         if (res.first) {
           uint64_t addr = value->getZExtValue();
           auto it = legalFunctions.find(addr);
@@ -2568,7 +2570,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> cond = eval(ki, 0, state).value;
     ref<Expr> tExpr = eval(ki, 1, state).value;
     ref<Expr> fExpr = eval(ki, 2, state).value;
-    ref<Expr> result = SelectExpr::create(cond, tExpr, fExpr);
+    ref<Expr> result = exprBuilder->Select(cond, tExpr, fExpr);
     bindLocal(ki, state, result);
     break;
   }
@@ -2582,28 +2584,28 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Add: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, AddExpr::create(left, right));
+    bindLocal(ki, state, exprBuilder->Add(left, right));
     break;
   }
 
   case Instruction::Sub: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, SubExpr::create(left, right));
+    bindLocal(ki, state, exprBuilder->Sub(left, right));
     break;
   }
  
   case Instruction::Mul: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    bindLocal(ki, state, MulExpr::create(left, right));
+    bindLocal(ki, state, exprBuilder->Mul(left, right));
     break;
   }
 
   case Instruction::UDiv: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = UDivExpr::create(left, right);
+    ref<Expr> result = exprBuilder->UDiv(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2611,7 +2613,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::SDiv: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = SDivExpr::create(left, right);
+    ref<Expr> result = exprBuilder->SDiv(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2619,7 +2621,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::URem: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = URemExpr::create(left, right);
+    ref<Expr> result = exprBuilder->URem(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2627,7 +2629,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::SRem: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = SRemExpr::create(left, right);
+    ref<Expr> result = exprBuilder->SRem(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2635,7 +2637,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::And: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = AndExpr::create(left, right);
+    ref<Expr> result = exprBuilder->And(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2643,7 +2645,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Or: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = OrExpr::create(left, right);
+    ref<Expr> result = exprBuilder->Or(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2651,7 +2653,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Xor: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = XorExpr::create(left, right);
+    ref<Expr> result = exprBuilder->Xor(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2659,7 +2661,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Shl: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = ShlExpr::create(left, right);
+    ref<Expr> result = exprBuilder->Shl(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2667,7 +2669,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::LShr: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = LShrExpr::create(left, right);
+    ref<Expr> result = exprBuilder->LShr(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2675,7 +2677,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::AShr: {
     ref<Expr> left = eval(ki, 0, state).value;
     ref<Expr> right = eval(ki, 1, state).value;
-    ref<Expr> result = AShrExpr::create(left, right);
+    ref<Expr> result = exprBuilder->AShr(left, right);
     bindLocal(ki, state, result);
     break;
   }
@@ -2690,7 +2692,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_EQ: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = EqExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Eq(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2698,7 +2700,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_NE: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = NeExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Ne(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2706,7 +2708,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_UGT: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = UgtExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Ugt(left, right);
       bindLocal(ki, state,result);
       break;
     }
@@ -2714,7 +2716,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_UGE: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = UgeExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Uge(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2722,7 +2724,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_ULT: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = UltExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Ult(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2730,7 +2732,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_ULE: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = UleExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Ule(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2738,7 +2740,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_SGT: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = SgtExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Sgt(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2746,7 +2748,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_SGE: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = SgeExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Sge(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2754,7 +2756,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_SLT: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = SltExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Slt(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2762,7 +2764,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     case ICmpInst::ICMP_SLE: {
       ref<Expr> left = eval(ki, 0, state).value;
       ref<Expr> right = eval(ki, 1, state).value;
-      ref<Expr> result = SleExpr::create(left, right);
+      ref<Expr> result = exprBuilder->Sle(left, right);
       bindLocal(ki, state, result);
       break;
     }
@@ -2782,7 +2784,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (ai->isArrayAllocation()) {
       ref<Expr> count = eval(ki, 0, state).value;
       count = Expr::createZExtToPointerWidth(count);
-      size = MulExpr::create(size, count);
+      size = exprBuilder->Mul(size, count);
     }
     executeAlloc(state, size, true, ki);
     break;
@@ -2810,12 +2812,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
          it != ie; ++it) {
       uint64_t elementSize = it->second;
       ref<Expr> index = eval(ki, it->first, state).value;
-      base = AddExpr::create(base,
-                             MulExpr::create(Expr::createSExtToPointerWidth(index),
+      base = exprBuilder->Add(base,
+                             exprBuilder->Mul(Expr::createSExtToPointerWidth(index),
                                              Expr::createPointer(elementSize)));
     }
     if (kgepi->offset)
-      base = AddExpr::create(base,
+      base = exprBuilder->Add(base,
                              Expr::createPointer(kgepi->offset));
 
     if (SingleObjectResolution) {
@@ -2864,7 +2866,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // Conversion
   case Instruction::Trunc: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = ExtractExpr::create(eval(ki, 0, state).value,
+    ref<Expr> result = exprBuilder->Extract(eval(ki, 0, state).value,
                                            0,
                                            getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
@@ -2872,14 +2874,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   }
   case Instruction::ZExt: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = ZExtExpr::create(eval(ki, 0, state).value,
+    ref<Expr> result = exprBuilder->ZExt(eval(ki, 0, state).value,
                                         getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
     break;
   }
   case Instruction::SExt: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = SExtExpr::create(eval(ki, 0, state).value,
+    ref<Expr> result = exprBuilder->SExt(eval(ki, 0, state).value,
                                         getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
     break;
@@ -2889,14 +2891,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width pType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, pType));
+    bindLocal(ki, state, exprBuilder->ZExt(arg, pType));
     break;
   }
   case Instruction::PtrToInt: {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width iType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, iType));
+    bindLocal(ki, state, exprBuilder->ZExt(arg, iType));
     break;
   }
 
@@ -3195,17 +3197,17 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned lOffset = kgepi->offset*8, rOffset = kgepi->offset*8 + val->getWidth();
 
     if (lOffset > 0)
-      l = ExtractExpr::create(agg, 0, lOffset);
+      l = exprBuilder->Extract(agg, 0, lOffset);
     if (rOffset < agg->getWidth())
-      r = ExtractExpr::create(agg, rOffset, agg->getWidth() - rOffset);
+      r = exprBuilder->Extract(agg, rOffset, agg->getWidth() - rOffset);
 
     ref<Expr> result;
     if (l && r)
-      result = ConcatExpr::create(r, ConcatExpr::create(val, l));
+      result = exprBuilder->Concat(r, exprBuilder->Concat(val, l));
     else if (l)
-      result = ConcatExpr::create(val, l);
+      result = exprBuilder->Concat(val, l);
     else if (r)
-      result = ConcatExpr::create(r, val);
+      result = exprBuilder->Concat(r, val);
     else
       result = val;
 
@@ -3217,7 +3219,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     ref<Expr> agg = eval(ki, 0, state).value;
 
-    ref<Expr> result = ExtractExpr::create(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
+    ref<Expr> result = exprBuilder->Extract(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
 
     bindLocal(ki, state, result);
     break;
@@ -3257,7 +3259,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       auto of = i - 1;
       unsigned bitOffset = EltBits * of;
       elems.push_back(
-          of == iIdx ? newElt : ExtractExpr::create(vec, bitOffset, EltBits));
+          of == iIdx ? newElt : exprBuilder->Extract(vec, bitOffset, EltBits));
     }
 
     assert(Context::get().isLittleEndian() && "FIXME:Broken for big endian");
@@ -3289,7 +3291,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     unsigned bitOffset = EltBits * iIdx;
-    ref<Expr> Result = ExtractExpr::create(vec, bitOffset, EltBits);
+    ref<Expr> Result = exprBuilder->Extract(vec, bitOffset, EltBits);
     bindLocal(ki, state, Result);
     break;
   }
@@ -3312,9 +3314,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     ref<Expr> arg = eval(ki, 0, state).value;
-    ref<Expr> exceptionPointer = ExtractExpr::create(arg, 0, Expr::Int64);
+    ref<Expr> exceptionPointer = exprBuilder->Extract(arg, 0, Expr::Int64);
     ref<Expr> selectorValue =
-        ExtractExpr::create(arg, Expr::Int64, Expr::Int32);
+        exprBuilder->Extract(arg, Expr::Int64, Expr::Int32);
 
     if (!dyn_cast<ConstantExpr>(exceptionPointer) ||
         !dyn_cast<ConstantExpr>(selectorValue)) {
@@ -3323,11 +3325,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       break;
     }
 
-    if (!Expr::createIsZero(selectorValue)->isTrue()) {
+    if (!exprBuilder->eqZero(selectorValue)->isTrue()) {
       klee_warning("resume-instruction called with non-0 selector value");
     }
 
-    if (!EqExpr::create(exceptionPointer, cui->exceptionObject)->isTrue()) {
+    if (!exprBuilder->Eq(exceptionPointer, cui->exceptionObject)->isTrue()) {
       terminateStateOnExecError(
           state, "resume-instruction called with unexpected exception pointer");
       break;
@@ -3367,12 +3369,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       // which represents a cleanup, and expect it to handle it.
       // This is explicitly allowed by LLVM, see
       // https://llvm.org/docs/ExceptionHandling.html#id18
-      selectorValue = ConstantExpr::create(0, Expr::Int32);
+      selectorValue = exprBuilder->Constant(0, Expr::Int32);
     }
 
     // we have to return a {i8*, i32}
-    ref<Expr> result = ConcatExpr::create(
-        ZExtExpr::create(selectorValue, Expr::Int32), exceptionPointer);
+    ref<Expr> result = exprBuilder->Concat(
+        exprBuilder->ZExt(selectorValue, Expr::Int32), exceptionPointer);
 
     bindLocal(ki, state, result);
 
@@ -4085,7 +4087,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   int *errno_addr = getErrnoLocation(state);
   ObjectPair result;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      exprBuilder->Constant((uint64_t)errno_addr, Expr::Int64), result);
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
   ref<Expr> errValueExpr = result.second->read(0, sizeof(*errno_addr) * 8);
@@ -4179,7 +4181,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
       arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id),
                              Expr::getMinBytesForWidth(e->getWidth()));
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
-  ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
+  ref<Expr> eq = NotOptimizedExpr::create(exprBuilder->Eq(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
   state.addConstraint(eq);
   return res;
@@ -4267,7 +4269,7 @@ void Executor::executeAlloc(ExecutionState &state,
         ref<ConstantExpr> tmp = example->LShr(ConstantExpr::alloc(1, W));
         bool res;
         [[maybe_unused]] bool success =
-            solver->mayBeTrue(state.constraints, EqExpr::create(tmp, size), res,
+            solver->mayBeTrue(state.constraints, exprBuilder->Eq(tmp, size), res,
                               state.queryMetaData);
         assert(success && "FIXME: Unhandled solver failure");
         if (!res)
@@ -4277,7 +4279,7 @@ void Executor::executeAlloc(ExecutionState &state,
     }
 
     StatePair fixedSize =
-        fork(state, EqExpr::create(example, size), true, BranchType::Alloc);
+        fork(state, exprBuilder->Eq(example, size), true, BranchType::Alloc);
 
     if (fixedSize.second) { 
       // Check for exactly two values
@@ -4288,7 +4290,7 @@ void Executor::executeAlloc(ExecutionState &state,
       (void) success;
       bool res;
       success = solver->mustBeTrue(fixedSize.second->constraints,
-                                   EqExpr::create(tmp, size), res,
+                                   exprBuilder->Eq(tmp, size), res,
                                    fixedSize.second->queryMetaData);
       assert(success && "FIXME: Unhandled solver failure");      
       (void) success;
@@ -4300,7 +4302,7 @@ void Executor::executeAlloc(ExecutionState &state,
         // malloc will fail for it, so lets fork and return 0.
         StatePair hugeSize =
             fork(*fixedSize.second,
-                 UltExpr::create(
+                 exprBuilder->Ult(
                      ConstantExpr::alloc(1U << 31, example->getWidth()), size),
                  true, BranchType::Alloc);
         if (hugeSize.first) {
@@ -4334,7 +4336,7 @@ void Executor::executeFree(ExecutionState &state,
                            KInstruction *target) {
   address = optimizer.optimizeExpr(address, true);
   StatePair zeroPointer =
-      fork(state, Expr::createIsZero(address), true, BranchType::Free);
+      fork(state, exprBuilder->eqZero(address), true, BranchType::Free);
   if (zeroPointer.first) {
     if (target)
       bindLocal(target, *zeroPointer.first, Expr::createPointer(0));
@@ -4376,7 +4378,7 @@ void Executor::resolveExact(ExecutionState &state,
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
-    ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
+    ref<Expr> inBounds = exprBuilder->Eq(p, it->first->getBaseExpr());
 
     StatePair branches =
         fork(*unbound, inBounds, true, BranchType::ResolvePointer);
@@ -4840,7 +4842,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
     bool mustBeTrue;
     // Attempt to bound byte to constraints held in cexPreferences
     bool success =
-      solver->mustBeTrue(extendedConstraints, Expr::createIsZero(pi),
+      solver->mustBeTrue(extendedConstraints, exprBuilder->eqZero(pi),
         mustBeTrue, state.queryMetaData);
     // If it isn't possible to add the condition without making the entire list
     // UNSAT, then just continue to the next condition
