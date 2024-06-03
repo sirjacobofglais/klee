@@ -473,18 +473,33 @@ cl::opt<bool> DebugCheckForImpliedValues(
     cl::desc("Debug the implied value optimization"),
     cl::cat(DebugCat));
 
+cl::opt<bool> DisableExprOpts(
+    "disable-expr-opts", 
+    cl::init(false),
+    cl::desc("Disable expression rewriting optimisations"),
+    llvm::cl::cat(klee::ExprCat));
+
 } // namespace
 
 // XXX hack
 extern "C" unsigned dumpStates, dumpExecutionTree;
 unsigned dumpStates = 0, dumpExecutionTree = 0;
 
+ExprBuilder *chooseExprBuilder() {
+
+  if (DisableExprOpts) {
+    return createSimplifyingExprBuilder(createDefaultExprBuilder());
+  } else return createSimplifyingExprBuilder(
+                  createConstantFoldingExprBuilder(
+                    createDefaultExprBuilder()));
+}
+
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
       pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      exprBuilder(createSimplifyingExprBuilder(createConstantFoldingExprBuilder(createDefaultExprBuilder()))),
+      exprBuilder(chooseExprBuilder()),
       replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
