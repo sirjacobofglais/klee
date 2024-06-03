@@ -34,3 +34,7 @@ autom4te.cache/
 
 .vscode/*
 
+# klee output files
+klee-last
+klee-out*
+*.bc

@@ -19,6 +19,7 @@ add_library(kleaverExpr
   ExprEvaluator.cpp
   ExprPPrinter.cpp
   ExprSMTLIBPrinter.cpp
+  ExprStats.cpp
   ExprUtil.cpp
   ExprVisitor.cpp
   Lexer.cpp

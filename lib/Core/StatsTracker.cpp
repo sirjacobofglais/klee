@@ -13,6 +13,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Core/TerminationTypes.h"
+#include "klee/Expr/ExprStats.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -467,6 +468,8 @@ void StatsTracker::writeStatsHeader() {
          << "ExternalCalls INTEGER,"
          << "Allocations INTEGER,"
          << "States INTEGER,"
+         << "ExpressionOpts INTEGER,"
+         << "ConstantOpts INTEGER,"
          BRANCH_TYPES
          TERMINATION_CLASSES
          << "ArrayHashTime INTEGER"
@@ -513,6 +516,8 @@ void StatsTracker::writeStatsHeader() {
          << "ExternalCalls,"
          << "Allocations,"
          << "States,"
+         << "ExpressionOpts,"
+         << "ConstantOpts,"
          BRANCH_TYPES
          TERMINATION_CLASSES
          << "ArrayHashTime"
@@ -522,6 +527,8 @@ void StatsTracker::writeStatsHeader() {
   #undef TCLASS
   #define TCLASS(Name, I) << "?,"
   insert << " VALUES ("
+         << "?,"
+         << "?,"
          << "?,"
          << "?,"
          << "?,"
@@ -593,6 +600,8 @@ void StatsTracker::writeStatsLine() {
   sqlite3_bind_int64(insertStmt, arg++, stats::inhibitedForks);
   sqlite3_bind_int64(insertStmt, arg++, stats::externalCalls);
   sqlite3_bind_int64(insertStmt, arg++, stats::allocations);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts);
+  sqlite3_bind_int64(insertStmt, arg++, stats::constOpts);
   sqlite3_bind_int64(insertStmt, arg++, ExecutionState::getLastID());
   BRANCH_TYPES
   TERMINATION_CLASSES

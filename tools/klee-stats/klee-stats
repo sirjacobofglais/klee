@@ -59,6 +59,9 @@ Legend = [
     ('QCacheHits', 'Query cache hits', "QueryCacheHits"),
     ('QCexCacheMisses', 'Counterexample cache misses', "QueryCexCacheMisses"),
     ('QCexCacheHits', 'Counterexample cache hits', "QueryCexCacheHits"),
+    # - expr
+    ('ExpressionOpts', 'Applied expression rewrites', "ExprOpts"),
+    ('ConstantOpts', 'Applied expression rewrites that produced a constant', "ConstOpts"),
     # - memory
     ('Allocations', 'number of allocated heap objects of the program under test', "Allocations"),
     ('Mem(MiB)', 'mebibytes of memory currently used', "MallocUsage"),
@@ -173,9 +176,13 @@ def select_columns(record, pr):
     elif pr == 'more':
         s_column = ['Path', 'Instructions', 'WallTime', 'ICov', 'BCov', 'ICount',
                   'RelSolverTime', 'NumStates', 'MaxStates', 'MallocUsage', 'MaxMem']
+    elif pr == 'expropts':
+        s_column = ['Path', 'Instructions', 'WallTime', 'RelSolverTime',
+                  'ExpressionOpts', 'ConstantOpts']
     else:
         s_column = ['Path', 'Instructions', 'WallTime', 'ICov',
                   'BCov', 'ICount', 'RelSolverTime']
+    
 
     # filter record
     return { column:record[column] for column in s_column if column in record }
@@ -529,6 +536,9 @@ def main():
                           action='store_true', dest='pAbsTimes',
                           help='Print only values of measured times. '
                           'Absolute values (in seconds) are printed.')
+    pControl.add_argument('--print-expr-opts',
+                          action='store_true', dest='pExprOpts',
+                          help='Print only count of expression optimisations applied. ')
     pControl.add_argument('--print-more',
                           action='store_true', dest='pMore',
                           help='Print extra information (needed when '
@@ -554,6 +564,8 @@ def main():
         pr = 'reltime'
     elif args.pAbsTimes:
         pr = 'abstime'
+    elif args.pExprOpts:
+        pr = 'expropts'
     elif args.pMore:
         pr = 'more'
 

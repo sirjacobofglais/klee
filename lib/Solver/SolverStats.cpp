@@ -18,7 +18,7 @@ Statistic stats::queriesInvalid("QueriesInvalid", "Qiv");
 Statistic stats::queriesValid("QueriesValid", "Qv");
 Statistic stats::queryCacheHits("QueryCacheHits", "QChits") ;
 Statistic stats::queryCacheMisses("QueryCacheMisses", "QCmisses");
-Statistic stats::queryCexCacheHits("QueryCexCacheHits", "QCexHits") ;
+Statistic stats::queryCexCacheHits("QueryCexCacheHits", "QCexHits");
 Statistic stats::queryCexCacheMisses("QueryCexCacheMisses", "QCexMisses");
 Statistic stats::queryConstructs("QueryConstructs", "QB");
 Statistic stats::queryCounterexamples("QueriesCEX", "Qcex");
