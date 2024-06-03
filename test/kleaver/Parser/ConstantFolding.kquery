@@ -753,7 +753,7 @@ array a[64] : w32 -> w8 = symbolic
 (query [] false [(Sub w8 (Or w8 X:(Read w8 0 a) Y:(Read w8 1 a)) X)])
 
 
-# Check -- (allOnes) - X => ~X
+# Check -- (-1) - X => ~X
 # RUN: grep -A 2 "# Query 137$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .(Not w8 (Read w8 0 a)" %t2

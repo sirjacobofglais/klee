@@ -928,7 +928,7 @@ namespace {
                   const ref<NonConstantExpr> &RHS) {
 
       if (LHS->isAllOnes())
-        // (allOnes) - X => ~X
+        // (-1) - X => ~X
         return record_opt(Builder->Not(RHS));
 
       if (LHS->isZero()) {
@@ -1450,7 +1450,7 @@ namespace {
                 BinaryExpr *RBE = cast<BinaryExpr>(RHS);
 
                 if (matchBinaryExprsChildren(NBE, RBE))
-                  // ~(A ^ B) | (A | B) => allOnes and commut.
+                  // ~(A ^ B) | (A | B) => -1 and commut.
                   return record_const_opt(Builder->AllOnes(LHS->getWidth()));
               }
 
@@ -1491,7 +1491,7 @@ namespace {
             BinaryExpr *RBE = cast<BinaryExpr>(NBE->expr);
 
             if (matchBinaryExprsChildren(LBE, RBE))
-               // (A | B) | ~(A ^ B) => allOnes and commut.
+               // (A | B) | ~(A ^ B) => -1 and commut.
                return record_const_opt(Builder->AllOnes(LHS->getWidth()));
             }
           }
@@ -1513,7 +1513,7 @@ namespace {
 
         case Expr::Not: {
           NotExpr *NE = cast<NotExpr>(RHS);
-          // ~X | X ==> allOnes
+          // ~X | X ==> -1
           if (matchNegated(NE, LHS)) {
             return record_const_opt(Builder->AllOnes(LHS->getWidth()));
           }
@@ -1524,7 +1524,7 @@ namespace {
             case Expr::And:{
               BinaryExpr *NBE = cast<BinaryExpr>(NE->expr);
 
-              // X | ~(X & Y) => -1; X | ~(Y & X) => allOnes
+              // X | ~(X & Y) => -1; X | ~(Y & X) => -1
               if (matchEitherChild(NBE, LHS)) {
                 return record_const_opt(Builder->AllOnes(LHS->getWidth()));
               }
@@ -1601,7 +1601,7 @@ namespace {
                  const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero() || LHS->isAllOnes()) 
         // 0 << X => 0
-        // allOnes << X => allOnes
+        // -1 << X => -1
         return record_opt(LHS);
 
       return Base->Shl(LHS, RHS);
@@ -1625,7 +1625,7 @@ namespace {
                  const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero() || LHS->isAllOnes()) 
         // 0 >> X => 0
-        // allOnes >> X => allOnes
+        // -1 >> X => -1
         return record_opt(LHS);
 
       return Base->LShr(LHS, RHS);
@@ -1649,7 +1649,7 @@ namespace {
                  const ref<NonConstantExpr> &RHS) {
       if (LHS->isZero() || LHS->isAllOnes()) 
         // 0 >> X => 0
-        // allOnes >> X => allOnes
+        // -1 >> X => -1
         return record_opt(LHS);
 
       return Base->AShr(LHS, RHS);
