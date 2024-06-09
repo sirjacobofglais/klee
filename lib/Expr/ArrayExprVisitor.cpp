@@ -9,6 +9,7 @@
 
 #include "klee/Expr/ArrayExprVisitor.h"
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include <algorithm>
@@ -21,7 +22,7 @@ bool ArrayExprHelper::isReadExprAtOffset(ref<Expr> e, const ReadExpr *base,
   const ReadExpr *re = dyn_cast<ReadExpr>(e.get());
   if (!re || (re->getWidth() != Expr::Int8))
     return false;
-  return SubExpr::create(re->index, base->index) == offset;
+  return exprBuilder->Sub(re->index, base->index) == offset;
 }
 
 ReadExpr *ArrayExprHelper::hasOrderedReads(const ConcatExpr &ce) {
@@ -35,19 +36,19 @@ ReadExpr *ArrayExprHelper::hasOrderedReads(const ConcatExpr &ce) {
   // Get stride expr in proper index width.
   Expr::Width idxWidth = base->index->getWidth();
   ref<Expr> strideExpr = ConstantExpr::alloc(-1, idxWidth);
-  ref<Expr> offset = ConstantExpr::create(0, idxWidth);
+  ref<Expr> offset = exprBuilder->Constant(0, idxWidth);
 
   ref<Expr> e = ce.getKid(1);
 
   // concat chains are unbalanced to the right
   while (e->getKind() == Expr::Concat) {
-    offset = AddExpr::create(offset, strideExpr);
+    offset = exprBuilder->Add(offset, strideExpr);
     if (!isReadExprAtOffset(e->getKid(0), base, offset))
       return nullptr;
     e = e->getKid(1);
   }
 
-  offset = AddExpr::create(offset, strideExpr);
+  offset = exprBuilder->Add(offset, strideExpr);
   if (!isReadExprAtOffset(e, base, offset))
     return nullptr;
 

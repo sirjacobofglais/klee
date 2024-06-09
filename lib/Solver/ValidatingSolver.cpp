@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverImpl.h"
 
@@ -79,7 +80,7 @@ bool ValidatingSolver::computeValue(const Query &query, ref<Expr> &result) {
   // We don't want to compare, but just make sure this is a legal
   // solution.
   if (!oracle->impl->computeTruth(
-          query.withExpr(NeExpr::create(query.expr, result)), answer))
+          query.withExpr(exprBuilder->Ne(query.expr, result)), answer))
     return false;
 
   if (answer)
@@ -105,16 +106,16 @@ bool ValidatingSolver::computeInitialValues(
       assert(array);
       for (unsigned j = 0; j < array->size; j++) {
         unsigned char value = values[i][j];
-        bindings.push_back(EqExpr::create(
+        bindings.push_back(exprBuilder->Eq(
             ReadExpr::create(UpdateList(array, 0),
                              ConstantExpr::alloc(j, array->getDomain())),
             ConstantExpr::alloc(value, array->getRange())));
       }
     }
     ConstraintManager tmp(bindings);
-    ref<Expr> constraints = Expr::createIsZero(query.expr);
+    ref<Expr> constraints = exprBuilder->eqZero(query.expr);
     for (auto const &constraint : query.constraints)
-      constraints = AndExpr::create(constraints, constraint);
+      constraints = exprBuilder->And(constraints, constraint);
 
     if (!oracle->impl->computeTruth(Query(bindings, constraints), answer))
       return false;

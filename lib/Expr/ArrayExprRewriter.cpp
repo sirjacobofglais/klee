@@ -11,6 +11,7 @@
 
 #include "klee/ADT/BitArray.h"
 #include "klee/Expr/ArrayExprVisitor.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Support/Casting.h"
 
 #include <llvm/ADT/APInt.h>
@@ -96,11 +97,11 @@ ref<Expr> ExprRewriter::rewrite(const ref<Expr> &e, const array2idx_ty &arrays,
               if (i - start == 1) {
                 eqExprs.push_back(createEqExpr(
                     (*index_it),
-                    ConstantExpr::create(start * width, idxWidth)));
+                    exprBuilder->Constant(start * width, idxWidth)));
               } else {
                 // create range expr
-                ref<Expr> s = ConstantExpr::create(start * width, idxWidth);
-                ref<Expr> e = ConstantExpr::create((i - 1) * width, idxWidth);
+                ref<Expr> s = exprBuilder->Constant(start * width, idxWidth);
+                ref<Expr> e = exprBuilder->Constant((i - 1) * width, idxWidth);
                 eqExprs.push_back(createRangeExpr((*index_it), s, e));
               }
               start = -1;
@@ -110,11 +111,11 @@ ref<Expr> ExprRewriter::rewrite(const ref<Expr> &e, const array2idx_ty &arrays,
         if (start >= 0) {
           if ((arr->size / width) - start == 1) {
             eqExprs.push_back(createEqExpr(
-                (*index_it), ConstantExpr::create(start * width, idxWidth)));
+                (*index_it), exprBuilder->Constant(start * width, idxWidth)));
           } else {
             // create range expr
-            ref<Expr> s = ConstantExpr::create(start * width, idxWidth);
-            ref<Expr> e = ConstantExpr::create(
+            ref<Expr> s = exprBuilder->Constant(start * width, idxWidth);
+            ref<Expr> e = exprBuilder->Constant(
                 ((arr->size / width) - 1) * width, idxWidth);
             eqExprs.push_back(createRangeExpr((*index_it), s, e));
           }

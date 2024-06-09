@@ -13,6 +13,7 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/ExprVisitor.h"
 #include "klee/Support/OptionCategories.h"
@@ -199,7 +200,7 @@ bool CexCachingSolver::lookupAssignment(const Query &query,
                                         KeyType &key,
                                         Assignment *&result) {
   key = KeyType(query.constraints.begin(), query.constraints.end());
-  ref<Expr> neg = Expr::createIsZero(query.expr);
+  ref<Expr> neg = exprBuilder->eqZero(query.expr);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(neg)) {
     if (CE->isFalse()) {
       result = (Assignment*) 0;

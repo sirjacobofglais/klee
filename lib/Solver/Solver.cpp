@@ -9,6 +9,7 @@
 
 #include "klee/Solver/Solver.h"
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Solver/SolverImpl.h"
 
@@ -136,10 +137,10 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
       bool res;
       bool success = 
         mustBeTrue(query.withExpr(
-                     EqExpr::create(LShrExpr::create(e,
-                                                     ConstantExpr::create(mid, 
+                     exprBuilder->Eq(exprBuilder->LShr(e,
+                                                     exprBuilder->Constant(mid, 
                                                                           width)),
-                                    ConstantExpr::create(0, width))),
+                                    exprBuilder->Constant(0, width))),
                    res);
 
       assert(success && "FIXME: Unhandled solver failure");
@@ -160,7 +161,7 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     // check common case
     bool res = false;
     bool success = 
-      mayBeTrue(query.withExpr(EqExpr::create(e, ConstantExpr::create(0, 
+      mayBeTrue(query.withExpr(exprBuilder->Eq(e, exprBuilder->Constant(0, 
                                                                       width))), 
                 res);
 
@@ -176,8 +177,8 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
         mid = lo + (hi - lo)/2;
         bool res = false;
         bool success = 
-          mayBeTrue(query.withExpr(UleExpr::create(e, 
-                                                   ConstantExpr::create(mid, 
+          mayBeTrue(query.withExpr(exprBuilder->Ule(e, 
+                                                   exprBuilder->Constant(mid, 
                                                                         width))),
                     res);
 
@@ -200,8 +201,8 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
       mid = lo + (hi - lo)/2;
       bool res;
       bool success = 
-        mustBeTrue(query.withExpr(UleExpr::create(e, 
-                                                  ConstantExpr::create(mid, 
+        mustBeTrue(query.withExpr(exprBuilder->Ule(e, 
+                                                  exprBuilder->Constant(mid, 
                                                                        width))),
                    res);
 
@@ -218,8 +219,8 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     max = lo;
   }
 
-  return std::make_pair(ConstantExpr::create(min, width),
-                        ConstantExpr::create(max, width));
+  return std::make_pair(exprBuilder->Constant(min, width),
+                        exprBuilder->Constant(max, width));
 }
 
 void Query::dump() const {

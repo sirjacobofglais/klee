@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprEvaluator.h"
 
 using namespace klee;

@@ -18,6 +18,7 @@
 #include "StatsTracker.h"
 #include "TimingSolver.h"
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Config/config.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -474,7 +475,7 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state,
   ref<Expr> e = arguments[0];
   
   if (e->getWidth() != Expr::Bool)
-    e = NeExpr::create(e, ConstantExpr::create(0, e->getWidth()));
+    e = exprBuilder->Ne(e, exprBuilder->Constant(0, e->getWidth()));
   
   bool res;
   bool success __attribute__((unused)) = executor.solver->mustBeFalse(
@@ -494,7 +495,7 @@ void SpecialFunctionHandler::handleIsSymbolic(ExecutionState &state,
   assert(arguments.size()==1 && "invalid number of arguments to klee_is_symbolic");
 
   executor.bindLocal(target, state, 
-                     ConstantExpr::create(!isa<ConstantExpr>(arguments[0]),
+                     exprBuilder->Constant(!isa<ConstantExpr>(arguments[0]),
                                           Expr::Int32));
 }
 
@@ -506,7 +507,7 @@ void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
 
   ref<Expr> cond = arguments[1];
   if (cond->getWidth() != Expr::Bool)
-    cond = NeExpr::create(cond, ConstantExpr::alloc(0, cond->getWidth()));
+    cond = exprBuilder->Ne(cond, ConstantExpr::alloc(0, cond->getWidth()));
 
   state.addCexPreference(cond);
 }
@@ -585,7 +586,7 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     bool res;
     success = executor.solver->mustBeTrue(state.constraints,
-                                          EqExpr::create(arguments[1], value),
+                                          exprBuilder->Eq(arguments[1], value),
                                           res, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     if (res) {
@@ -612,7 +613,7 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
          ie = rl.end(); it != ie; ++it) {
     executor.bindLocal(
         target, *it->second,
-        ConstantExpr::create(it->first.first->size,
+        exprBuilder->Constant(it->first.first->size,
                              executor.kmodule->targetData->getTypeSizeInBits(
                                  target->inst->getType())));
   }
@@ -633,7 +634,7 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
   // Retrieve the memory object of the errno variable
   ObjectPair result;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      exprBuilder->Constant((uint64_t)errno_addr, Expr::Int64), result);
   if (!resolved)
     executor.terminateStateOnUserError(state, "Could not resolve address for errno");
   executor.bindLocal(target, state, result.second->read(0, Expr::Int32));
@@ -654,7 +655,7 @@ void SpecialFunctionHandler::handleErrnoLocation(
 
   executor.bindLocal(
       target, state,
-      ConstantExpr::create((uint64_t)errno_addr,
+      exprBuilder->Constant((uint64_t)errno_addr,
                            executor.kmodule->targetData->getTypeSizeInBits(
                                target->inst->getType())));
 }
@@ -665,7 +666,7 @@ void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
   assert(arguments.size()==2 &&
          "invalid number of arguments to calloc");
 
-  ref<Expr> size = MulExpr::create(arguments[0],
+  ref<Expr> size = exprBuilder->Mul(arguments[0],
                                    arguments[1]);
   executor.executeAlloc(state, size, false, target, true);
 }
@@ -680,14 +681,14 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   ref<Expr> size = arguments[1];
 
   Executor::StatePair zeroSize =
-      executor.fork(state, Expr::createIsZero(size), true, BranchType::Realloc);
+      executor.fork(state, exprBuilder->eqZero(size), true, BranchType::Realloc);
 
   if (zeroSize.first) { // size == 0
     executor.executeFree(*zeroSize.first, address, target);   
   }
   if (zeroSize.second) { // size != 0
     Executor::StatePair zeroPointer =
-        executor.fork(*zeroSize.second, Expr::createIsZero(address), true,
+        executor.fork(*zeroSize.second, exprBuilder->eqZero(address), true,
                       BranchType::Realloc);
 
     if (zeroPointer.first) { // address == 0
@@ -810,8 +811,8 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     bool res;
     bool success __attribute__((unused)) = executor.solver->mustBeTrue(
         s->constraints,
-        EqExpr::create(
-            ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
+        exprBuilder->Eq(
+            exprBuilder->ZExt(arguments[1], Context::get().getPointerWidth()),
             mo->getSizeExpr()),
         res, s->queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");

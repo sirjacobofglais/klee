@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/ExprBuilder.h"
 
 namespace klee {
 
@@ -33,7 +34,7 @@ ConstraintSet Assignment::createConstraintsFromAssignment() const {
 
     for (unsigned arrayIndex = 0; arrayIndex < array->size; ++arrayIndex) {
       unsigned char value = values[arrayIndex];
-      result.push_back(EqExpr::create(
+      result.push_back(exprBuilder->Eq(
           ReadExpr::create(UpdateList(array, 0),
                            ConstantExpr::alloc(arrayIndex, array->getDomain())),
           ConstantExpr::alloc(value, array->getRange())));

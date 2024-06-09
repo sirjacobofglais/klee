@@ -133,6 +133,7 @@ cl::opt<bool> SingleObjectResolution(
     cl::desc("Try to resolve memory reads/writes to single objects "
              "when offsets are symbolic (default=false)"),
     cl::init(false), cl::cat(MiscCat));
+
 } // namespace klee
 
 namespace {
@@ -485,25 +486,27 @@ cl::opt<bool> DisableExprOpts(
 extern "C" unsigned dumpStates, dumpExecutionTree;
 unsigned dumpStates = 0, dumpExecutionTree = 0;
 
-ExprBuilder *chooseExprBuilder() {
 
-  if (DisableExprOpts) {
-    return createSimplifyingExprBuilder(createDefaultExprBuilder());
-  } else return createSimplifyingExprBuilder(
-                  createConstantFoldingExprBuilder(
-                    createDefaultExprBuilder()));
-}
+void initExprBuilder(bool disableExprOpts) {
+    
+    if (disableExprOpts) {
+      exprBuilder =  createSimplifyingExprBuilder(createDefaultExprBuilder());
+    } else
+        exprBuilder =  createSimplifyingExprBuilder(
+                        createConstantFoldingExprBuilder(
+                          createDefaultExprBuilder())  );
+  }
 
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
       pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      exprBuilder(chooseExprBuilder()),
       replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
 
+      initExprBuilder(DisableExprOpts);
 
   const time::Span maxTime{MaxTime};
   if (maxTime) timers.add(
@@ -1860,19 +1863,19 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       unsigned w = op1->getWidth();
       assert(w == op2->getWidth() && "type mismatch");
       assert(w == op3->getWidth() && "type mismatch");
-      ref<Expr> c = exprBuilder->Concat(op1, op2);
+      ref<Expr> c = ConcatExpr::create(op1, op2);
       // op3 = zeroExtend(op3 % w)
       op3 = exprBuilder->URem(op3, exprBuilder->Constant(w, w));
       op3 = exprBuilder->ZExt(op3, w+w);
       if (f->getIntrinsicID() == Intrinsic::fshl) {
         // shift left and take top half
         ref<Expr> s = exprBuilder->Shl(c, op3);
-        bindLocal(ki, state, exprBuilder->Extract(s, w, w));
+        bindLocal(ki, state, ExtractExpr::create(s, w, w));
       } else {
         // shift right and take bottom half
         // note that LShr and AShr will have same behaviour
         ref<Expr> s = exprBuilder->LShr(c, op3);
-        bindLocal(ki, state, exprBuilder->Extract(s, 0, w));
+        bindLocal(ki, state, ExtractExpr::create(s, 0, w));
       }
       break;
     }
@@ -2881,7 +2884,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // Conversion
   case Instruction::Trunc: {
     CastInst *ci = cast<CastInst>(i);
-    ref<Expr> result = exprBuilder->Extract(eval(ki, 0, state).value,
+    ref<Expr> result = ExtractExpr::create(eval(ki, 0, state).value,
                                            0,
                                            getWidthForLLVMType(ci->getType()));
     bindLocal(ki, state, result);
@@ -3212,17 +3215,17 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned lOffset = kgepi->offset*8, rOffset = kgepi->offset*8 + val->getWidth();
 
     if (lOffset > 0)
-      l = exprBuilder->Extract(agg, 0, lOffset);
+      l = ExtractExpr::create(agg, 0, lOffset);
     if (rOffset < agg->getWidth())
-      r = exprBuilder->Extract(agg, rOffset, agg->getWidth() - rOffset);
+      r = ExtractExpr::create(agg, rOffset, agg->getWidth() - rOffset);
 
     ref<Expr> result;
     if (l && r)
-      result = exprBuilder->Concat(r, exprBuilder->Concat(val, l));
+      result = ConcatExpr::create(r, ConcatExpr::create(val, l));
     else if (l)
-      result = exprBuilder->Concat(val, l);
+      result = ConcatExpr::create(val, l);
     else if (r)
-      result = exprBuilder->Concat(r, val);
+      result = ConcatExpr::create(r, val);
     else
       result = val;
 
@@ -3234,7 +3237,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     ref<Expr> agg = eval(ki, 0, state).value;
 
-    ref<Expr> result = exprBuilder->Extract(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
+    ref<Expr> result = ExtractExpr::create(agg, kgepi->offset*8, getWidthForLLVMType(i->getType()));
 
     bindLocal(ki, state, result);
     break;
@@ -3274,7 +3277,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       auto of = i - 1;
       unsigned bitOffset = EltBits * of;
       elems.push_back(
-          of == iIdx ? newElt : exprBuilder->Extract(vec, bitOffset, EltBits));
+          of == iIdx ? newElt : ExtractExpr::create(vec, bitOffset, EltBits));
     }
 
     assert(Context::get().isLittleEndian() && "FIXME:Broken for big endian");
@@ -3306,7 +3309,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     unsigned bitOffset = EltBits * iIdx;
-    ref<Expr> Result = exprBuilder->Extract(vec, bitOffset, EltBits);
+    ref<Expr> Result = ExtractExpr::create(vec, bitOffset, EltBits);
     bindLocal(ki, state, Result);
     break;
   }
@@ -3329,9 +3332,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     ref<Expr> arg = eval(ki, 0, state).value;
-    ref<Expr> exceptionPointer = exprBuilder->Extract(arg, 0, Expr::Int64);
+    ref<Expr> exceptionPointer = ExtractExpr::create(arg, 0, Expr::Int64);
     ref<Expr> selectorValue =
-        exprBuilder->Extract(arg, Expr::Int64, Expr::Int32);
+        ExtractExpr::create(arg, Expr::Int64, Expr::Int32);
 
     if (!dyn_cast<ConstantExpr>(exceptionPointer) ||
         !dyn_cast<ConstantExpr>(selectorValue)) {
@@ -3388,7 +3391,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     // we have to return a {i8*, i32}
-    ref<Expr> result = exprBuilder->Concat(
+    ref<Expr> result = ConcatExpr::create(
         exprBuilder->ZExt(selectorValue, Expr::Int32), exceptionPointer);
 
     bindLocal(ki, state, result);
@@ -4196,7 +4199,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
       arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id),
                              Expr::getMinBytesForWidth(e->getWidth()));
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
-  ref<Expr> eq = NotOptimizedExpr::create(exprBuilder->Eq(e, res));
+  ref<Expr> eq = exprBuilder->NotOptimized(exprBuilder->Eq(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
   state.addConstraint(eq);
   return res;

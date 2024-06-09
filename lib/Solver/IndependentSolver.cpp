@@ -13,6 +13,7 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Support/Debug.h"
 #include "klee/Solver/SolverImpl.h"
@@ -269,7 +270,7 @@ getAllIndependentConstraintsSets(const Query &query) {
     assert(CE && CE->isFalse() && "the expr should always be false and "
                                   "therefore not included in factors");
   } else {
-    ref<Expr> neg = Expr::createIsZero(query.expr);
+    ref<Expr> neg = exprBuilder->eqZero(query.expr);
     factors->push_back(IndependentElementSet(neg));
   }
 
@@ -464,7 +465,7 @@ bool assertCreatedPointEvaluatesToTrue(
       return false;
     }
   }
-  ref<Expr> neg = Expr::createIsZero(query.expr);
+  ref<Expr> neg = exprBuilder->eqZero(query.expr);
   ref<Expr> q = assign.evaluate(neg);
   assert(isa<ConstantExpr>(q) &&
          "assignment evaluation did not result in constant");

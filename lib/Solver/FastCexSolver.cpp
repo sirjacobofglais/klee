@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprEvaluator.h"
 #include "klee/Expr/ExprRangeEvaluator.h"
 #include "klee/Expr/ExprVisitor.h"
@@ -1125,7 +1126,7 @@ FastCexSolver::computeInitialValues(const Query& query,
     for (unsigned i=0; i < array->size; i++) {
       ref<Expr> read = 
         ReadExpr::create(UpdateList(array, 0),
-                         ConstantExpr::create(i, array->getDomain()));
+                         exprBuilder->Constant(i, array->getDomain()));
       ref<Expr> value = cd.evaluatePossible(read);
       
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {

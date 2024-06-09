@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Solver/IncompleteSolver.h"
 #include "klee/Solver/SolverImpl.h"
 #include "klee/Solver/SolverStats.h"
@@ -94,7 +95,7 @@ public:
     the canonicalization process. */
 ref<Expr> CachingSolver::canonicalizeQuery(ref<Expr> originalQuery,
                                            bool &negationUsed) {
-  ref<Expr> negatedQuery = Expr::createIsZero(originalQuery);
+  ref<Expr> negatedQuery = exprBuilder->eqZero(originalQuery);
 
   // select the "smaller" query to the be canonical representation
   if (originalQuery.compare(negatedQuery) < 0) {

@@ -118,7 +118,6 @@ private:
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
   std::unique_ptr<ExecutionTree> executionTree;
-  ExprBuilder *exprBuilder;
 
   /// Used to track states that have been added during the current
   /// instructions step. 

@@ -468,8 +468,8 @@ void StatsTracker::writeStatsHeader() {
          << "ExternalCalls INTEGER,"
          << "Allocations INTEGER,"
          << "States INTEGER,"
-         << "ExpressionOpts INTEGER,"
-         << "ConstantOpts INTEGER,"
+         << "ExprOpts INTEGER,"
+         << "ConstOpts INTEGER,"
          BRANCH_TYPES
          TERMINATION_CLASSES
          << "ArrayHashTime INTEGER"
@@ -516,8 +516,8 @@ void StatsTracker::writeStatsHeader() {
          << "ExternalCalls,"
          << "Allocations,"
          << "States,"
-         << "ExpressionOpts,"
-         << "ConstantOpts,"
+         << "ExprOpts,"
+         << "ConstOpts,"
          BRANCH_TYPES
          TERMINATION_CLASSES
          << "ArrayHashTime"

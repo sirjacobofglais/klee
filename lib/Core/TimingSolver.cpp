@@ -11,6 +11,7 @@
 
 #include "ExecutionState.h"
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Config/Version.h"
 #include "klee/Statistics/Statistics.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
@@ -69,7 +70,7 @@ bool TimingSolver::mustBeTrue(const ConstraintSet &constraints, ref<Expr> expr,
 
 bool TimingSolver::mustBeFalse(const ConstraintSet &constraints, ref<Expr> expr,
                                bool &result, SolverQueryMetaData &metaData) {
-  return mustBeTrue(constraints, Expr::createIsZero(expr), result, metaData);
+  return mustBeTrue(constraints, exprBuilder->eqZero(expr), result, metaData);
 }
 
 bool TimingSolver::mayBeTrue(const ConstraintSet &constraints, ref<Expr> expr,

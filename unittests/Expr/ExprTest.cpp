@@ -12,6 +12,7 @@
 
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 
 using namespace klee;
 
@@ -20,12 +21,12 @@ namespace {
 ref<Expr> getConstant(int value, Expr::Width width) {
   int64_t ext = value;
   uint64_t trunc = ext & (((uint64_t) -1LL) >> (64 - width));
-  return ConstantExpr::create(trunc, width);
+  return exprBuilder->Constant(trunc, width);
 }
 
 TEST(ExprTest, BasicConstruction) {
   EXPECT_EQ(ref<Expr>(ConstantExpr::alloc(0, 32)),
-            SubExpr::create(ConstantExpr::alloc(10, 32),
+            exprBuilder->Sub(ConstantExpr::alloc(10, 32),
                             ConstantExpr::alloc(10, 32)));
 }
 
@@ -119,7 +120,7 @@ TEST(ExprTest, ReadExprFoldingBasic) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
@@ -130,7 +131,7 @@ TEST(ExprTest, ReadExprFoldingBasic) {
 
   for (unsigned i = 0; i < size; ++i) {
     // Constant index (i)
-    read = ReadExpr::create(ul, ConstantExpr::create(i, Expr::Int32));
+    read = ReadExpr::create(ul, exprBuilder->Constant(i, Expr::Int32));
     EXPECT_EQ(Expr::Constant, read.get()->getKind());
     // Read - should be constant folded to Contents[i]
     // Check that constant folding worked
@@ -145,14 +146,14 @@ TEST(ExprTest, ReadExprFoldingIndexOutOfBound) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
 
   // Constant folding rule with index-out-of-bound
   // Constant index (128)
-  ref<Expr> index = ConstantExpr::create(128, Expr::Int32);
+  ref<Expr> index = exprBuilder->Constant(128, Expr::Int32);
   UpdateList ul(array, 0);
   ref<Expr> read = ReadExpr::create(ul, index);
   // Read - should not be constant folded
@@ -166,16 +167,16 @@ TEST(ExprTest, ReadExprFoldingConstantUpdate) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
 
   // Constant folding rule with constant update
   // Constant index (0)
-  ref<Expr> index = ConstantExpr::create(0, Expr::Int32);
+  ref<Expr> index = exprBuilder->Constant(0, Expr::Int32);
   UpdateList ul(array, 0);
-  ref<Expr> updateValue = ConstantExpr::create(32, Expr::Int8);
+  ref<Expr> updateValue = exprBuilder->Constant(32, Expr::Int8);
   ul.extend(index, updateValue);
   ref<Expr> read = ReadExpr::create(ul, index);
   // Read - should be constant folded to 32
@@ -191,17 +192,17 @@ TEST(ExprTest, ReadExprFoldingConstantMultipleUpdate) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
 
   // Constant folding rule with constant update
   // Constant index (0)
-  ref<Expr> index = ConstantExpr::create(0, Expr::Int32);
+  ref<Expr> index = exprBuilder->Constant(0, Expr::Int32);
   UpdateList ul(array, 0);
-  ref<Expr> updateValue = ConstantExpr::create(32, Expr::Int8);
-  ref<Expr> updateValue2 = ConstantExpr::create(64, Expr::Int8);
+  ref<Expr> updateValue = exprBuilder->Constant(32, Expr::Int8);
+  ref<Expr> updateValue2 = exprBuilder->Constant(64, Expr::Int8);
   ul.extend(index, updateValue);
   ul.extend(index, updateValue2);
   ref<Expr> read = ReadExpr::create(ul, index);
@@ -218,14 +219,14 @@ TEST(ExprTest, ReadExprFoldingSymbolicValueUpdate) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
 
   // Constant folding rule with symbolic update (value)
   // Constant index (0)
-  ref<Expr> index = ConstantExpr::create(0, Expr::Int32);
+  ref<Expr> index = exprBuilder->Constant(0, Expr::Int32);
   UpdateList ul(array, 0);
   const Array *array2 = ac.CreateArray("arr2", 256);
   ref<Expr> updateValue = ReadExpr::createTempRead(array2, Expr::Int8);
@@ -243,7 +244,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
   // Constant array
   std::vector<ref<ConstantExpr> > Contents(size);
   for (unsigned i = 0; i < size; ++i)
-    Contents[i] = ConstantExpr::create(i + 1, Expr::Int8);
+    Contents[i] = exprBuilder->Constant(i + 1, Expr::Int8);
   ArrayCache ac;
   const Array *array =
       ac.CreateArray("arr", size, &Contents[0], &Contents[0] + size);
@@ -252,13 +253,13 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
   UpdateList ul(array, 0);
   const Array *array2 = ac.CreateArray("arr2", 256);
   ref<Expr> updateIndex = ReadExpr::createTempRead(array2, Expr::Int32);
-  ref<Expr> updateValue = ConstantExpr::create(12, Expr::Int8);
+  ref<Expr> updateValue = exprBuilder->Constant(12, Expr::Int8);
   ul.extend(updateIndex, updateValue);
   ref<Expr> read;
 
   for (unsigned i = 0; i < size; ++i) {
     // Constant index (i)
-    read = ReadExpr::create(ul, ConstantExpr::create(i, Expr::Int32));
+    read = ReadExpr::create(ul, exprBuilder->Constant(i, Expr::Int32));
     // Read - should not be constant folded
     // Check that constant folding was not applied
     EXPECT_EQ(Expr::Read, read.get()->getKind());

@@ -15,6 +15,7 @@
 
 #include "klee/ADT/KTest.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/ADT/KTest.h"
 #include "klee/Support/ErrorHandling.h"
@@ -88,7 +89,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
     // If not in bindings, then this can't be a violation?
     auto a = assignment.bindings.find(array);
     if (a != assignment.bindings.end()) {
-      ref<Expr> isSeed = EqExpr::create(read, 
+      ref<Expr> isSeed = exprBuilder->Eq(read, 
                                         ConstantExpr::alloc(a->second[i],
                                                             Expr::Int8));
       bool res;
@@ -103,7 +104,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
         assert(success && "FIXME: Unhandled solver failure");            
         (void) success;
         a->second[i] = value->getZExtValue(8);
-        cm.addConstraint(EqExpr::create(
+        cm.addConstraint(exprBuilder->Eq(
             read, ConstantExpr::alloc(a->second[i], Expr::Int8)));
       } else {
         cm.addConstraint(isSeed);
@@ -128,7 +129,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
     for (unsigned i=0; i<array->size; ++i) {
       ref<Expr> read = ReadExpr::create(UpdateList(array, 0),
                                         ConstantExpr::alloc(i, Expr::Int32));
-      ref<Expr> isSeed = EqExpr::create(read, 
+      ref<Expr> isSeed = exprBuilder->Eq(read, 
                                         ConstantExpr::alloc(it->second[i], 
                                                             Expr::Int8));
       bool res;
@@ -143,7 +144,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
         assert(success && "FIXME: Unhandled solver failure");            
         (void) success;
         it->second[i] = value->getZExtValue(8);
-        cm.addConstraint(EqExpr::create(
+        cm.addConstraint(exprBuilder->Eq(
             read, ConstantExpr::alloc(it->second[i], Expr::Int8)));
       } else {
         cm.addConstraint(isSeed);

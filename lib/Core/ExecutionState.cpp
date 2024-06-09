@@ -12,6 +12,7 @@
 #include "Memory.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
@@ -297,10 +298,10 @@ bool ExecutionState::merge(const ExecutionState &b) {
   ref<Expr> inB = ConstantExpr::alloc(1, Expr::Bool);
   for (std::set< ref<Expr> >::iterator it = aSuffix.begin(), 
          ie = aSuffix.end(); it != ie; ++it)
-    inA = AndExpr::create(inA, *it);
+    inA = exprBuilder->And(inA, *it);
   for (std::set< ref<Expr> >::iterator it = bSuffix.begin(), 
          ie = bSuffix.end(); it != ie; ++it)
-    inB = AndExpr::create(inB, *it);
+    inB = exprBuilder->And(inB, *it);
 
   // XXX should we have a preference as to which predicate to use?
   // it seems like it can make a difference, even though logically
@@ -318,7 +319,7 @@ bool ExecutionState::merge(const ExecutionState &b) {
         // if one is null then by implication (we are at same pc)
         // we cannot reuse this local, so just ignore
       } else {
-        av = SelectExpr::create(inA, av, bv);
+        av = exprBuilder->Select(inA, av, bv);
       }
     }
   }
@@ -336,7 +337,7 @@ bool ExecutionState::merge(const ExecutionState &b) {
     for (unsigned i=0; i<mo->size; i++) {
       ref<Expr> av = wos->read8(i);
       ref<Expr> bv = otherOS->read8(i);
-      wos->write(i, SelectExpr::create(inA, av, bv));
+      wos->write(i, exprBuilder->Select(inA, av, bv));
     }
   }
 
@@ -345,7 +346,7 @@ bool ExecutionState::merge(const ExecutionState &b) {
   ConstraintManager m(constraints);
   for (const auto &constraint : commonConstraints)
     m.addConstraint(constraint);
-  m.addConstraint(OrExpr::create(inA, inB));
+  m.addConstraint(exprBuilder->Or(inA, inB));
 
   return true;
 }

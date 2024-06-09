@@ -11,6 +11,6 @@
 
 using namespace klee;
 
-Statistic stats::exprOpts("ExpressionOpts", "ExprOpts");
+Statistic stats::exprOpts("ExprOpts", "ExO");
 
-Statistic stats::constOpts("ConstantOpts", "ConstOpts");
+Statistic stats::constOpts("constOpts", "CnO");

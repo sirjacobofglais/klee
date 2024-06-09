@@ -2,6 +2,7 @@
 
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/ExprBuilder.h"
 
 #include <iostream>
 #include <vector>

@@ -14,6 +14,7 @@
 #include "TimingSolver.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 
 #include "CoreStats.h"
@@ -128,7 +129,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
       } else {
         bool mustBeTrue;
         if (!solver->mustBeTrue(state.constraints,
-                                UgeExpr::create(address, mo->getBaseExpr()),
+                                exprBuilder->Uge(address, mo->getBaseExpr()),
                                 mustBeTrue, state.queryMetaData))
           return false;
         if (mustBeTrue)
@@ -142,7 +143,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
 
       bool mustBeTrue;
       if (!solver->mustBeTrue(state.constraints,
-                              UltExpr::create(address, mo->getBaseExpr()),
+                              exprBuilder->Ult(address, mo->getBaseExpr()),
                               mustBeTrue, state.queryMetaData))
         return false;
       if (mustBeTrue) {
@@ -259,7 +260,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 
       bool mustBeTrue;
       if (!solver->mustBeTrue(state.constraints,
-                              UgeExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                              exprBuilder->Uge(p, mo->getBaseExpr()), mustBeTrue,
                               state.queryMetaData))
         return true;
       if (mustBeTrue)
@@ -274,7 +275,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 
       bool mustBeTrue;
       if (!solver->mustBeTrue(state.constraints,
-                              UltExpr::create(p, mo->getBaseExpr()), mustBeTrue,
+                              exprBuilder->Ult(p, mo->getBaseExpr()), mustBeTrue,
                               state.queryMetaData))
         return true;
       if (mustBeTrue)

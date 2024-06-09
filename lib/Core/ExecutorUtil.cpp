@@ -13,6 +13,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
@@ -61,10 +62,10 @@ namespace klee {
         if (getWidthForLLVMType(c->getType()) == 0) {
           if (isa<llvm::LandingPadInst>(ki->inst)) {
             klee_warning_once(0, "Using zero size array fix for landingpad instruction filter");
-            return ConstantExpr::create(0, 1);
+            return exprBuilder->Constant(0, 1);
           }
         }
-        return ConstantExpr::create(0, getWidthForLLVMType(c->getType()));
+        return exprBuilder->Constant(0, getWidthForLLVMType(c->getType()));
       } else if (const ConstantDataSequential *cds =
                  dyn_cast<ConstantDataSequential>(c)) {
         // Handle a vector or array: first element has the smallest address,
@@ -91,7 +92,7 @@ namespace klee {
             : sl->getElementOffsetInBits(op+1);
           if (nextOffset-thisOffset > kid->getWidth()) {
             uint64_t paddingWidth = nextOffset-thisOffset-kid->getWidth();
-            kids.push_back(ConstantExpr::create(0, paddingWidth));
+            kids.push_back(exprBuilder->Constant(0, paddingWidth));
           }
 
           kids.push_back(kid);

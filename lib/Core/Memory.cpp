@@ -17,6 +17,7 @@
 #include "klee/ADT/BitArray.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
@@ -166,7 +167,7 @@ const UpdateList &ObjectState::getUpdates() const {
 
     // Initialize to zeros.
     for (unsigned i = 0, e = size; i != e; ++i)
-      Contents[i] = ConstantExpr::create(0, Expr::Int8);
+      Contents[i] = exprBuilder->Constant(0, Expr::Int8);
 
     // Pull off as many concrete writes as we can.
     unsigned Begin = 0, End = Writes.size();
@@ -267,12 +268,12 @@ void ObjectState::flushRangeForRead(unsigned rangeBase,
   for (unsigned offset = rangeBase; offset < rangeBase + rangeSize; offset++) {
     if (isByteUnflushed(offset)) {
       if (isByteConcrete(offset)) {
-        updates.extend(ConstantExpr::create(offset, Expr::Int32),
-                       ConstantExpr::create(concreteStore[offset], Expr::Int8));
+        updates.extend(exprBuilder->Constant(offset, Expr::Int32),
+                       exprBuilder->Constant(concreteStore[offset], Expr::Int8));
       } else {
         assert(isByteKnownSymbolic(offset) &&
                "invalid bit set in unflushedMask");
-        updates.extend(ConstantExpr::create(offset, Expr::Int32),
+        updates.extend(exprBuilder->Constant(offset, Expr::Int32),
                        knownSymbolics[offset]);
       }
 
@@ -288,13 +289,13 @@ void ObjectState::flushRangeForWrite(unsigned rangeBase, unsigned rangeSize) {
   for (unsigned offset = rangeBase; offset < rangeBase + rangeSize; offset++) {
     if (isByteUnflushed(offset)) {
       if (isByteConcrete(offset)) {
-        updates.extend(ConstantExpr::create(offset, Expr::Int32),
-                       ConstantExpr::create(concreteStore[offset], Expr::Int8));
+        updates.extend(exprBuilder->Constant(offset, Expr::Int32),
+                       exprBuilder->Constant(concreteStore[offset], Expr::Int8));
         markByteSymbolic(offset);
       } else {
         assert(isByteKnownSymbolic(offset) &&
                "invalid bit set in unflushedMask");
-        updates.extend(ConstantExpr::create(offset, Expr::Int32),
+        updates.extend(exprBuilder->Constant(offset, Expr::Int32),
                        knownSymbolics[offset]);
         setKnownSymbolic(offset, 0);
       }
@@ -364,14 +365,14 @@ void ObjectState::setKnownSymbolic(unsigned offset,
 
 ref<Expr> ObjectState::read8(unsigned offset) const {
   if (isByteConcrete(offset)) {
-    return ConstantExpr::create(concreteStore[offset], Expr::Int8);
+    return exprBuilder->Constant(concreteStore[offset], Expr::Int8);
   } else if (isByteKnownSymbolic(offset)) {
     return knownSymbolics[offset];
   } else {
     assert(!isByteUnflushed(offset) && "unflushed byte without cache value");
     
     return ReadExpr::create(getUpdates(), 
-                            ConstantExpr::create(offset, Expr::Int32));
+                            exprBuilder->Constant(offset, Expr::Int32));
   }    
 }
 
@@ -393,7 +394,7 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
         size, allocInfo.c_str());
   }
 
-  return ReadExpr::create(getUpdates(), ZExtExpr::create(offset, Expr::Int32));
+  return ReadExpr::create(getUpdates(), exprBuilder->ZExt(offset, Expr::Int32));
 }
 
 void ObjectState::write8(unsigned offset, uint8_t value) {
@@ -435,14 +436,14 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
         size, allocInfo.c_str());
   }
 
-  updates.extend(ZExtExpr::create(offset, Expr::Int32), value);
+  updates.extend(exprBuilder->ZExt(offset, Expr::Int32), value);
 }
 
 /***/
 
 ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   // Truncate offset to 32-bits.
-  offset = ZExtExpr::create(offset, Expr::Int32);
+  offset = exprBuilder->ZExt(offset, Expr::Int32);
 
   // Check for reads at constant offsets.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(offset))
@@ -458,8 +459,8 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   ref<Expr> Res(0);
   for (unsigned i = 0; i != NumBytes; ++i) {
     unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
-    ref<Expr> Byte = read8(AddExpr::create(offset, 
-                                           ConstantExpr::create(idx, 
+    ref<Expr> Byte = read8(exprBuilder->Add(offset, 
+                                           exprBuilder->Constant(idx, 
                                                                 Expr::Int32)));
     Res = i ? ConcatExpr::create(Byte, Res) : Byte;
   }
@@ -487,7 +488,7 @@ ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
 
 void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
   // Truncate offset to 32-bits.
-  offset = ZExtExpr::create(offset, Expr::Int32);
+  offset = exprBuilder->ZExt(offset, Expr::Int32);
 
   // Check for writes at constant offsets.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(offset)) {
@@ -498,7 +499,7 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
   // Treat bool specially, it is the only non-byte sized write we allow.
   Expr::Width w = value->getWidth();
   if (w == Expr::Bool) {
-    write8(offset, ZExtExpr::create(value, Expr::Int8));
+    write8(offset, exprBuilder->ZExt(value, Expr::Int8));
     return;
   }
 
@@ -507,7 +508,7 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
   assert(w == NumBytes * 8 && "Invalid write size!");
   for (unsigned i = 0; i != NumBytes; ++i) {
     unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
-    write8(AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)),
+    write8(exprBuilder->Add(offset, exprBuilder->Constant(idx, Expr::Int32)),
            ExtractExpr::create(value, 8 * i, Expr::Int8));
   }
 }
@@ -532,7 +533,7 @@ void ObjectState::write(unsigned offset, ref<Expr> value) {
   // Treat bool specially, it is the only non-byte sized write we allow.
   Expr::Width w = value->getWidth();
   if (w == Expr::Bool) {
-    write8(offset, ZExtExpr::create(value, Expr::Int8));
+    write8(offset, exprBuilder->ZExt(value, Expr::Int8));
     return;
   }
 

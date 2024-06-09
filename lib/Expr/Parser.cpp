@@ -1192,7 +1192,6 @@ ExprResult ParserImpl::ParseConcatParenExpr(const Token &Name,
     return Builder->Constant(0, ResTy);
   }
 
-  // FIXME: Use builder!
   return ConcatExpr::createN(Kids.size(), &Kids[0]);
 }
 
@@ -1273,13 +1272,13 @@ ExprResult ParserImpl::ParseAnyReadParenExpr(const Token &Name,
       // Read macro pattern fails to match.
       ExprHandle OffsetIndex = Index;
       if (i)
-        OffsetIndex = AddExpr::create(OffsetIndex,
+        OffsetIndex = exprBuilder->Add(OffsetIndex,
                                       Builder->Constant(i, ArrayDomainType));
       Kids[i] = Builder->Read(Array.get(), OffsetIndex);
     }
     if (Kind == eMacroKind_ReadLSB)
       std::reverse(Kids.begin(), Kids.end());
-    // FIXME: Use builder!
+
     return ConcatExpr::createN(NumReads, &Kids[0]);
   }
   case Expr::Read:

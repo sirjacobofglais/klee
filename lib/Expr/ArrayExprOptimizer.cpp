@@ -69,33 +69,33 @@ ref<Expr> extendRead(const UpdateList &ul, const ref<Expr> index,
   case Expr::Int16:
     return ConcatExpr::create(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(1, Expr::Int32), index)),
         ReadExpr::alloc(ul, index));
   case Expr::Int32:
     return ConcatExpr::create4(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(3, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(2, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(1, Expr::Int32), index)),
         ReadExpr::alloc(ul, index));
   case Expr::Int64:
     return ConcatExpr::create8(
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(7, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(7, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(6, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(6, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(5, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(5, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(4, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(4, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(3, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(3, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(2, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(2, Expr::Int32), index)),
         ReadExpr::alloc(
-            ul, AddExpr::create(ConstantExpr::create(1, Expr::Int32), index)),
+            ul, exprBuilder->Add(exprBuilder->Constant(1, Expr::Int32), index)),
         ReadExpr::alloc(ul, index));
   }
 }
@@ -143,7 +143,7 @@ ref<Expr> ExprOptimizer::optimizeExpr(const ref<Expr> &e, bool valueOnly) {
           result = ExprRewriter::createOptExpr(e, arrays, idx_valIdx);
         } else {
           klee_warning("OPT_I: infeasible branch!");
-          result = ConstantExpr::create(0, Expr::Bool);
+          result = exprBuilder->Constant(0, Expr::Bool);
         }
         // Add new expression to cache
         if (result) {
@@ -312,9 +312,9 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
         arrayValues.push_back(val);
       }
 
-      ref<Expr> index = UDivExpr::create(
+      ref<Expr> index = exprBuilder->UDiv(
           read->index,
-          ConstantExpr::create(bytesPerElement, read->index->getWidth()));
+          exprBuilder->Constant(bytesPerElement, read->index->getWidth()));
 
       ref<Expr> opt =
           buildConstantSelectExpr(index, arrayValues, width, elementsInArray);
@@ -357,7 +357,7 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       if (arrayConstValues.size() < size) {
         // We need to "force" initialization of the values
         for (size_t i = arrayConstValues.size(); i < size; i++) {
-          arrayConstValues.push_back(ConstantExpr::create(0, Expr::Int8));
+          arrayConstValues.push_back(exprBuilder->Constant(0, Expr::Int8));
         }
       }
 
@@ -496,20 +496,20 @@ ref<Expr> ExprOptimizer::buildConstantSelectExpr(
     } else {
       if (range.second.size() == 1) {
         if (range.second[0].first == (range.second[0].second - 1)) {
-          temp = SelectExpr::create(
-              EqExpr::create(actualIndex,
+          temp = exprBuilder->Select(
+              exprBuilder->Eq(actualIndex,
                              builder->Constant(llvm::APInt(
                                  idxWidth, range.second[0].first, false))),
               builder->Constant(llvm::APInt(valWidth, range.first, false)),
               result);
 
         } else {
-          temp = SelectExpr::create(
-              AndExpr::create(
-                  SgeExpr::create(actualIndex,
+          temp = exprBuilder->Select(
+              exprBuilder->And(
+                  exprBuilder->Sge(actualIndex,
                                   builder->Constant(llvm::APInt(
                                       idxWidth, range.second[0].first, false))),
-                  SltExpr::create(
+                  exprBuilder->Slt(
                       actualIndex,
                       builder->Constant(llvm::APInt(
                           idxWidth, range.second[0].second, false)))),
@@ -520,35 +520,35 @@ ref<Expr> ExprOptimizer::buildConstantSelectExpr(
       } else {
         ref<Expr> currOr;
         if (range.second[0].first == (range.second[0].second - 1)) {
-          currOr = EqExpr::create(actualIndex,
+          currOr = exprBuilder->Eq(actualIndex,
                                   builder->Constant(llvm::APInt(
                                       idxWidth, range.second[0].first, false)));
         } else {
-          currOr = AndExpr::create(
-              SgeExpr::create(actualIndex,
+          currOr = exprBuilder->And(
+              exprBuilder->Sge(actualIndex,
                               builder->Constant(llvm::APInt(
                                   idxWidth, range.second[0].first, false))),
-              SltExpr::create(actualIndex,
+              exprBuilder->Slt(actualIndex,
                               builder->Constant(llvm::APInt(
                                   idxWidth, range.second[0].second, false))));
         }
         for (size_t i = 1; i < range.second.size(); i++) {
           ref<Expr> tempOr;
           if (range.second[i].first == (range.second[i].second - 1)) {
-            tempOr = OrExpr::create(
-                EqExpr::create(actualIndex,
+            tempOr = exprBuilder->Or(
+                exprBuilder->Eq(actualIndex,
                                builder->Constant(llvm::APInt(
                                    idxWidth, range.second[i].first, false))),
                 currOr);
 
           } else {
-            tempOr = OrExpr::create(
-                AndExpr::create(
-                    SgeExpr::create(
+            tempOr = exprBuilder->Or(
+                exprBuilder->And(
+                    exprBuilder->Sge(
                         actualIndex,
                         builder->Constant(llvm::APInt(
                             idxWidth, range.second[i].first, false))),
-                    SltExpr::create(
+                    exprBuilder->Slt(
                         actualIndex,
                         builder->Constant(llvm::APInt(
                             idxWidth, range.second[i].second, false)))),
@@ -556,7 +556,7 @@ ref<Expr> ExprOptimizer::buildConstantSelectExpr(
           }
           currOr = tempOr;
         }
-        temp = SelectExpr::create(currOr, builder->Constant(llvm::APInt(
+        temp = exprBuilder->Select(currOr, builder->Constant(llvm::APInt(
                                               valWidth, range.first, false)),
                                   result);
       }
@@ -631,44 +631,44 @@ ref<Expr> ExprOptimizer::buildMixedSelectExpr(
       result = builder->Constant(llvm::APInt(width, values[0], false));
       range_start = 1;
     } else {
-      ref<Expr> firstIndex = MulExpr::create(
-          ConstantExpr::create(holes[0], re->index->getWidth()),
-          ConstantExpr::create(width / 8, re->index->getWidth()));
+      ref<Expr> firstIndex = exprBuilder->Mul(
+          exprBuilder->Constant(holes[0], re->index->getWidth()),
+          exprBuilder->Constant(width / 8, re->index->getWidth()));
       result = extendRead(re->updates, firstIndex, width);
       for (size_t i = 1; i < holes.size(); i++) {
-        ref<Expr> temp_idx = MulExpr::create(
-            ConstantExpr::create(holes[i], re->index->getWidth()),
-            ConstantExpr::create(width / 8, re->index->getWidth()));
-        ref<Expr> cond = EqExpr::create(re->index, temp_idx);
-        ref<Expr> temp = SelectExpr::create(
+        ref<Expr> temp_idx = exprBuilder->Mul(
+            exprBuilder->Constant(holes[i], re->index->getWidth()),
+            exprBuilder->Constant(width / 8, re->index->getWidth()));
+        ref<Expr> cond = exprBuilder->Eq(re->index, temp_idx);
+        ref<Expr> temp = exprBuilder->Select(
             cond, extendRead(re->updates, temp_idx, width), result);
         result = temp;
       }
     }
 
-    ref<Expr> new_index = UDivExpr::create(
-        re->index, ConstantExpr::create(width / 8, re->index->getWidth()));
+    ref<Expr> new_index = exprBuilder->UDiv(
+        re->index, exprBuilder->Constant(width / 8, re->index->getWidth()));
 
     int new_index_width = new_index->getWidth();
     // Iterate through all the ranges
     for (size_t i = range_start; i < ranges.size(); i++) {
       ref<Expr> temp;
       if (ranges[i].second - 1 == ranges[i].first) {
-        ref<Expr> cond = EqExpr::create(
-            new_index, ConstantExpr::create(ranges[i].first, new_index_width));
-        ref<Expr> t = ConstantExpr::create(values[i], width);
+        ref<Expr> cond = exprBuilder->Eq(
+            new_index, exprBuilder->Constant(ranges[i].first, new_index_width));
+        ref<Expr> t = exprBuilder->Constant(values[i], width);
         ref<Expr> f = result;
-        temp = SelectExpr::create(cond, t, f);
+        temp = exprBuilder->Select(cond, t, f);
       } else {
         // Create the select constraint
-        ref<Expr> cond = AndExpr::create(
-            SgeExpr::create(new_index, ConstantExpr::create(ranges[i].first,
+        ref<Expr> cond = exprBuilder->And(
+            exprBuilder->Sge(new_index, exprBuilder->Constant(ranges[i].first,
                                                             new_index_width)),
-            SltExpr::create(new_index, ConstantExpr::create(ranges[i].second,
+            exprBuilder->Slt(new_index, exprBuilder->Constant(ranges[i].second,
                                                             new_index_width)));
-        ref<Expr> t = ConstantExpr::create(values[i], width);
+        ref<Expr> t = exprBuilder->Constant(values[i], width);
         ref<Expr> f = result;
-        temp = SelectExpr::create(cond, t, f);
+        temp = exprBuilder->Select(cond, t, f);
       }
       result = temp;
     }

@@ -10,6 +10,7 @@
 #include "klee/Expr/AssignmentGenerator.h"
 
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/klee.h"
@@ -223,7 +224,7 @@ bool AssignmentGenerator::isReadExprAtOffset(ref<Expr> e, const ReadExpr *base,
   const ReadExpr *re = dyn_cast<ReadExpr>(e.get());
   if (!re || (re->getWidth() != Expr::Int8))
     return false;
-  return SubExpr::create(re->index, base->index) == offset;
+  return exprBuilder->Sub(re->index, base->index) == offset;
 }
 
 ReadExpr *AssignmentGenerator::hasOrderedReads(ref<Expr> e) {
@@ -239,19 +240,19 @@ ReadExpr *AssignmentGenerator::hasOrderedReads(ref<Expr> e) {
   // Get stride expr in proper index width.
   Expr::Width idxWidth = base->index->getWidth();
   ref<Expr> strideExpr = ConstantExpr::alloc(-1, idxWidth);
-  ref<Expr> offset = ConstantExpr::create(0, idxWidth);
+  ref<Expr> offset = exprBuilder->Constant(0, idxWidth);
 
   e = e->getKid(1);
 
   // concat chains are unbalanced to the right
   while (e->getKind() == Expr::Concat) {
-    offset = AddExpr::create(offset, strideExpr);
+    offset = exprBuilder->Add(offset, strideExpr);
     if (!isReadExprAtOffset(e->getKid(0), base, offset))
       return NULL;
     e = e->getKid(1);
   }
 
-  offset = AddExpr::create(offset, strideExpr);
+  offset = exprBuilder->Add(offset, strideExpr);
   if (!isReadExprAtOffset(e, base, offset))
     return NULL;
 
@@ -259,44 +260,44 @@ ReadExpr *AssignmentGenerator::hasOrderedReads(ref<Expr> e) {
 }
 
 ref<Expr> AssignmentGenerator::createSubExpr(const ref<Expr> &l, ref<Expr> &r) {
-  return SubExpr::create(r, l);
+  return exprBuilder->Sub(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createAddExpr(const ref<Expr> &l, ref<Expr> &r) {
-  return AddExpr::create(r, l);
+  return exprBuilder->Add(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createMulExpr(const ref<Expr> &l, ref<Expr> &r) {
-  return MulExpr::create(r, l);
+  return exprBuilder->Mul(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createDivRem(const ref<Expr> &l, ref<Expr> &r,
                                             bool sign) {
   if (sign)
-    return SRemExpr::create(r, l);
+    return exprBuilder->SRem(r, l);
   else
-    return URemExpr::create(r, l);
+    return exprBuilder->URem(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createDivExpr(const ref<Expr> &l, ref<Expr> &r,
                                              bool sign) {
   if (sign)
-    return SDivExpr::create(r, l);
+    return exprBuilder->SDiv(r, l);
   else
-    return UDivExpr::create(r, l);
+    return exprBuilder->UDiv(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createShlExpr(const ref<Expr> &l, ref<Expr> &r) {
-  return ShlExpr::create(r, l);
+  return exprBuilder->Shl(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createLShrExpr(const ref<Expr> &l,
                                               ref<Expr> &r) {
-  return LShrExpr::create(r, l);
+  return exprBuilder->LShr(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createAndExpr(const ref<Expr> &l, ref<Expr> &r) {
-  return AndExpr::create(r, l);
+  return exprBuilder->And(r, l);
 }
 
 ref<Expr> AssignmentGenerator::createExtractExpr(const ref<Expr> &l,
@@ -307,9 +308,9 @@ ref<Expr> AssignmentGenerator::createExtractExpr(const ref<Expr> &l,
 ref<Expr> AssignmentGenerator::createExtendExpr(const ref<Expr> &l,
                                                 ref<Expr> &r) {
   if (l.get()->getKind() == Expr::ZExt) {
-    return ZExtExpr::create(r, l.get()->getWidth());
+    return exprBuilder->ZExt(r, l.get()->getWidth());
   } else {
-    return SExtExpr::create(r, l.get()->getWidth());
+    return exprBuilder->SExt(r, l.get()->getWidth());
   }
 }
 

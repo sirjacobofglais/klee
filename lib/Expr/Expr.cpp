@@ -1078,6 +1078,7 @@ static ref<Expr> TryConstArrayOpt(const ref<ConstantExpr> &cl,
 }
 
 static ref<Expr> EqExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {  
+
   Expr::Width width = cl->getWidth();
 
   Expr::Kind rk = r->getKind();

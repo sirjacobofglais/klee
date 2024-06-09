@@ -11,6 +11,7 @@
 #define KLEE_ASSIGNMENT_H
 
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprEvaluator.h"
 
 #include <map>
@@ -74,7 +75,7 @@ namespace klee {
       return ConstantExpr::alloc(it->second[index], array->getRange());
     } else {
       if (allowFreeValues) {
-        return ReadExpr::create(UpdateList(array, ref<UpdateNode>(nullptr)),
+        return exprBuilder->Read(UpdateList(array, ref<UpdateNode>(nullptr)),
                                 ConstantExpr::alloc(index, array->getDomain()));
       } else {
         return ConstantExpr::alloc(0, array->getRange());

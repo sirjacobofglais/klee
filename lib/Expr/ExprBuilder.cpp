@@ -699,7 +699,6 @@ namespace {
 
     // Used to mark Optimising rewrites only, not canonicalisations
     ref<Expr> record_opt(ref<Expr> val) {
-
       ++stats::exprOpts;
       return val;
     }
@@ -761,9 +760,14 @@ namespace {
 
     ref<Expr> Add(const ref<ConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
-      // 0 + X ==> X
+
       if (LHS->isZero())
+        // 0 +  ==> X
         return record_opt(RHS);
+
+      if (LHS->getWidth() == Expr::Bool) 
+        // i1 X + Y => X ^ Y
+        return record_opt(Builder->Xor(LHS, RHS));
 
       switch (RHS->getKind()) {
       default: break;
@@ -806,6 +810,10 @@ namespace {
         // X + X => X << 1
         return record_const_opt(Builder->Shl(LHS, Builder->Constant(1, LHS->getWidth())));
       }
+
+      if (LHS->getWidth() == Expr::Bool) 
+        // i1 X + Y => X ^ Y
+        return record_opt(Builder->Xor(LHS, RHS));
   
       switch (LHS->getKind()) {
         default: break;
@@ -929,6 +937,11 @@ namespace {
         // (-1) - X => ~X
         return record_opt(Builder->Not(RHS));
 
+      if (LHS->getWidth() == Expr::Bool) 
+        // i1 X - Y => X ^ Y
+        return record_opt(Builder->Xor(LHS, RHS));
+  
+
       if (LHS->isZero()) {
 
         switch (RHS->getKind()) {
@@ -992,36 +1005,36 @@ namespace {
       }
 
       switch (RHS->getKind()) {
-      default: break;
+        default: break;
 
-      case Expr::Not: {
-        NotExpr *NE = cast<NotExpr>(RHS);
+        case Expr::Not: {
+          NotExpr *NE = cast<NotExpr>(RHS);
 
-        // C - ~X => (1 + C) + X
-        return record_opt(Builder->Add(LHS->Add(ConstantExpr::create(1, LHS->getWidth())), NE->expr));
-      }
+          // C - ~X => (1 + C) + X
+          return record_opt(Builder->Add(LHS->Add(Builder->Constant(1, LHS->getWidth())), NE->expr));
+        }
 
-      case Expr::Add: {
-        BinaryExpr *BE = cast<BinaryExpr>(RHS);
-        // C_0 - (C_1 + X) ==> (C_0 - C1) - X
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
-          return record_opt(Builder->Sub(LHS->Sub(CE), BE->right));
-        // C_0 - (X + C_1) ==> (C_0 + C1) + X
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
-          return record_opt(Builder->Sub(LHS->Sub(CE), BE->left));
-        break;
-      }
+        case Expr::Add: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 - (C_1 + X) ==> (C_0 - C1) - X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return record_opt(Builder->Sub(LHS->Sub(CE), BE->right));
+          // C_0 - (X + C_1) ==> (C_0 + C1) + X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return record_opt(Builder->Sub(LHS->Sub(CE), BE->left));
+          break;
+        }
 
-      case Expr::Sub: {
-        BinaryExpr *BE = cast<BinaryExpr>(RHS);
-        // C_0 - (C_1 - X) ==> (C_0 - C1) + X
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
-          return record_opt(Builder->Add(LHS->Sub(CE), BE->right));
-        // C_0 - (X - C_1) ==> (C_0 + C1) - X
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
-          return record_opt(Builder->Sub(LHS->Add(CE), BE->left));
-        break;
-      }
+        case Expr::Sub: {
+          BinaryExpr *BE = cast<BinaryExpr>(RHS);
+          // C_0 - (C_1 - X) ==> (C_0 - C1) + X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
+            return record_opt(Builder->Add(LHS->Sub(CE), BE->right));
+          // C_0 - (X - C_1) ==> (C_0 + C1) - X
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
+            return record_opt(Builder->Sub(LHS->Add(CE), BE->left));
+          break;
+        }
       }
 
       return Base->Sub(LHS, RHS);
@@ -1039,6 +1052,11 @@ namespace {
       if (exactMatch(LHS.get(), RHS.get()))
         // X - X => 0
         return record_opt(Base->Zero(LHS->getWidth()));
+
+      if (LHS->getWidth() == Expr::Bool) 
+        // i1 X - Y => X ^ Y
+        return record_opt(Builder->Xor(LHS, RHS));
+  
 
       switch (LHS->getKind()) {
         default: break;
@@ -1084,7 +1102,7 @@ namespace {
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
             if (exactMatch(BE->right.get(), RHS.get()))
               // (C * X) - X => (C - 1) * X
-              return record_opt(Builder->Mul(CE->Sub(ConstantExpr::create(1, CE->getWidth())), RHS));
+              return record_opt(Builder->Mul(CE->Sub(Builder->Constant(1, CE->getWidth())), RHS));
           break;
         }
 
@@ -1209,6 +1227,10 @@ namespace {
 
     ref<Expr> Mul(const ref<NonConstantExpr> &LHS,
                   const ref<NonConstantExpr> &RHS) {
+
+      if (LHS->getWidth() == Expr::Bool) 
+        // i1 X * Y => X & Y
+        return record_opt(Builder->And(LHS, RHS));
       return Base->Mul(LHS, RHS);
     }
 
@@ -1218,6 +1240,7 @@ namespace {
         // X / 1 => 1
         return record_opt(LHS);
       }
+
       return Base->UDiv(LHS, RHS);
     }
 
@@ -1540,6 +1563,11 @@ namespace {
       if (LHS->isZero())
         // 0 ^ X => X
         return record_opt(RHS);
+
+      if (LHS->isTrue()) 
+        // true ^ Y => ~Y
+        return record_opt(Builder->Not(RHS));
+
       // FIXME: Unbalance nested ors, fold constants through
       // {and,or}-with-constant, etc.
       return Base->Xor(LHS, RHS);
@@ -2120,11 +2148,45 @@ namespace {
       return Base->Sle(LHS, RHS);
     }
 
+    ref<Expr> ZExt(const ref<NonConstantExpr> &expr, Expr::Width w) {
+      if (expr->getWidth() == w)
+        // ZExt X w => X if w == X.width
+        return record_opt(expr);
+      return Base->ZExt(expr, w);
+    }
+
+    ref<Expr> SExt(const ref<NonConstantExpr> &expr, Expr::Width w) {
+      if (expr->getWidth() == w)
+        // SExt X w => X if w == X.width
+        return record_opt(expr);
+      return Base->SExt(expr, w);
+    }
+    
+
     ref<Expr> Select(const ref<Expr> &Cond, 
                      const ref<Expr> &LHS, 
                      const ref<Expr> &RHS) {
+
+      if (ConstantExpr *LCE = dyn_cast<ConstantExpr>(LHS)) {
+        if (LCE->isTrue())
+          // Select X true Z => X | Z
+          return record_opt(Builder->Or(Cond, RHS));
+        else if (LCE->isFalse()) 
+          //Select X false Z => ~X & Z
+          return record_opt(Builder->And(Builder->Not(Cond), RHS));
+      }
+
+      if (ConstantExpr *RCE = dyn_cast<ConstantExpr>(RHS)) {
+        if (RCE->isTrue())
+          // Select X Y true => ~X | Y
+          return record_opt(Builder->Or(Builder->Not(Cond), LHS));
+        else if (RCE->isFalse()) 
+          //Select X Y false => X & Y
+          return record_opt(Builder->And(Cond, LHS));
+      }
+
         
-      if (LHS.get(), RHS.get()) {
+      if (exactMatch(LHS.get(), RHS.get())) {
         // Select Y X X => X
         return record_opt(LHS);
       }
@@ -2222,3 +2284,7 @@ ExprBuilder *klee::createSimplifyingExprBuilder(ExprBuilder *Base) {
   return new SimplifyingExprBuilder(Base);
 }
 
+namespace klee {
+
+  ExprBuilder* exprBuilder = nullptr;
+}

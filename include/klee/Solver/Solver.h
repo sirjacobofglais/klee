@@ -11,6 +11,7 @@
 #define KLEE_SOLVER_H
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/System/Time.h"
 #include "klee/Solver/SolverCmdLine.h"
 
@@ -52,7 +53,7 @@ namespace klee {
 
     /// negateExpr - Return a copy of the query with the expression negated.
     Query negateExpr() const {
-      return withExpr(Expr::createIsZero(expr));
+      return withExpr(exprBuilder->eqZero(expr));
     }
 
     /// Dump query

@@ -13,6 +13,7 @@
 
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Solver/Solver.h"
 
@@ -206,7 +207,7 @@ void ImpliedValue::checkForImpliedValues(Solver *S, ref<Expr> e,
   reads = std::vector< ref<ReadExpr> >(readsSet.begin(), readsSet.end());
 
   ConstraintSet assumption;
-  assumption.push_back(EqExpr::create(e, value));
+  assumption.push_back(exprBuilder->Eq(e, value));
 
   // obscure... we need to make sure that all the read indices are
   // bounds checked. if we don't do this we can end up constructing
@@ -217,7 +218,7 @@ void ImpliedValue::checkForImpliedValues(Solver *S, ref<Expr> e,
   for (std::vector< ref<ReadExpr> >::iterator i = reads.begin(), 
          ie = reads.end(); i != ie; ++i) {
     ReadExpr *re = i->get();
-    assumption.push_back(UltExpr::create(re->index, 
+    assumption.push_back(exprBuilder->Ult(re->index, 
                                          ConstantExpr::alloc(re->updates.root->size, 
                                                              Context::get().getPointerWidth())));
   }
@@ -230,7 +231,7 @@ void ImpliedValue::checkForImpliedValues(Solver *S, ref<Expr> e,
     std::map<ref<ReadExpr>, ref<ConstantExpr> >::iterator it = found.find(var);
     bool res;
     success =
-        S->mustBeTrue(Query(assumption, EqExpr::create(var, possible)), res);
+        S->mustBeTrue(Query(assumption, exprBuilder->Eq(var, possible)), res);
     assert(success && "FIXME: Unhandled solver failure");    
     if (res) {
       if (it != found.end()) {

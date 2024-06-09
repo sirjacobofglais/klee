@@ -60,8 +60,8 @@ Legend = [
     ('QCexCacheMisses', 'Counterexample cache misses', "QueryCexCacheMisses"),
     ('QCexCacheHits', 'Counterexample cache hits', "QueryCexCacheHits"),
     # - expr
-    ('ExpressionOpts', 'Applied expression rewrites', "ExprOpts"),
-    ('ConstantOpts', 'Applied expression rewrites that produced a constant', "ConstOpts"),
+    ('ExprOpts', 'Applied expression rewrites', "ExO"),
+    ('ConstOpts', 'Applied expression rewrites that produced a constant', "CnO"),
     # - memory
     ('Allocations', 'number of allocated heap objects of the program under test', "Allocations"),
     ('Mem(MiB)', 'mebibytes of memory currently used', "MallocUsage"),
@@ -178,7 +178,7 @@ def select_columns(record, pr):
                   'RelSolverTime', 'NumStates', 'MaxStates', 'MallocUsage', 'MaxMem']
     elif pr == 'expropts':
         s_column = ['Path', 'Instructions', 'WallTime', 'RelSolverTime',
-                  'ExpressionOpts', 'ConstantOpts']
+                  'ExprOpts', 'ConstOpts']
     else:
         s_column = ['Path', 'Instructions', 'WallTime', 'ICov',
                   'BCov', 'ICount', 'RelSolverTime']

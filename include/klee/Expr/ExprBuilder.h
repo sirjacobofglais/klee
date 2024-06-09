@@ -98,6 +98,8 @@ namespace klee {
   ///
   /// Base - The base builder to use when constructing expressions.
   ExprBuilder *createSimplifyingExprBuilder(ExprBuilder *Base);
+
+  extern ExprBuilder* exprBuilder;
 }
 
 #endif /* KLEE_EXPRBUILDER_H */

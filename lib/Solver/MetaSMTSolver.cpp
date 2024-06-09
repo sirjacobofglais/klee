@@ -14,6 +14,7 @@
 
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Solver/Solver.h"
@@ -224,7 +225,7 @@ SolverImpl::SolverRunStatus MetaSMTSolverImpl<SolverContext>::runAndGetCex(
     assumption(_meta_solver, _builder->construct(constraint));
 
   // assume the negation of the query
-  assumption(_meta_solver, _builder->construct(Expr::createIsZero(query.expr)));
+  assumption(_meta_solver, _builder->construct(exprBuilder->eqZero(query.expr)));
   hasSolution = solve(_meta_solver);
 
   if (hasSolution) {
@@ -303,7 +304,7 @@ MetaSMTSolverImpl<SolverContext>::runAndGetCexForked(
 
     // asssert the negation of the query as we are in a child process
     assertion(_meta_solver,
-              _builder->construct(Expr::createIsZero(query.expr)));
+              _builder->construct(exprBuilder->eqZero(query.expr)));
     unsigned res = solve(_meta_solver);
 
     if (res) {

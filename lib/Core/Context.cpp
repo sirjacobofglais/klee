@@ -10,6 +10,7 @@
 #include "Context.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -36,13 +37,13 @@ const Context &Context::get() {
 // moves out of Expr.
 
 ref<Expr> Expr::createSExtToPointerWidth(ref<Expr> e) {
-  return SExtExpr::create(e, Context::get().getPointerWidth());
+  return exprBuilder->SExt(e, Context::get().getPointerWidth());
 }
 
 ref<Expr> Expr::createZExtToPointerWidth(ref<Expr> e) {
-  return ZExtExpr::create(e, Context::get().getPointerWidth());
+  return exprBuilder->ZExt(e, Context::get().getPointerWidth());
 }
 
 ref<ConstantExpr> Expr::createPointer(uint64_t v) {
-  return ConstantExpr::create(v, Context::get().getPointerWidth());
+  return exprBuilder->Constant(v, Context::get().getPointerWidth());
 }

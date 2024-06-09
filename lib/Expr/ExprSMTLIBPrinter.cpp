@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Support/Casting.h"
 
@@ -366,8 +367,8 @@ void ExprSMTLIBPrinter::printAShrExpr(const ref<AShrExpr> &e) {
 
   Expr::Width bitWidth = e->getKid(0)->getWidth();
   assert(bitWidth > 0 && "Invalid bit width");
-  ref<Expr> bitWidthExpr = ConstantExpr::create(bitWidth, bitWidth);
-  ref<Expr> zeroExpr = ConstantExpr::create(0, bitWidth);
+  ref<Expr> bitWidthExpr = exprBuilder->Constant(bitWidth, bitWidth);
+  ref<Expr> zeroExpr = exprBuilder->Constant(0, bitWidth);
 
   // FIXME: we print e->getKid(1) twice and it might not get
   // abbreviated
@@ -633,7 +634,7 @@ void ExprSMTLIBPrinter::printHumanReadableQuery() {
 
     // We negate the Query Expr because in KLEE queries are solved
     // in terms of validity, but SMT-LIB works in terms of satisfiability
-    ref<Expr> queryAssert = Expr::createIsZero(query->expr);
+    ref<Expr> queryAssert = exprBuilder->eqZero(query->expr);
     printAssert(queryAssert);
   } else {
     // let bindings are only scoped within a single (assert ...) so
@@ -651,13 +652,13 @@ void ExprSMTLIBPrinter::printMachineReadableQuery() {
 void ExprSMTLIBPrinter::printQueryInSingleAssert() {
   // We negate the Query Expr because in KLEE queries are solved
   // in terms of validity, but SMT-LIB works in terms of satisfiability
-  ref<Expr> queryAssert = Expr::createIsZero(query->expr);
+  ref<Expr> queryAssert = exprBuilder->eqZero(query->expr);
 
   // Print constraints inside the main query to reuse the Expr bindings
   for (std::vector<ref<Expr> >::const_iterator i = query->constraints.begin(),
                                                e = query->constraints.end();
        i != e; ++i) {
-    queryAssert = AndExpr::create(queryAssert, *i);
+    queryAssert = exprBuilder->And(queryAssert, *i);
   }
 
   // print just a single (assert ...) containing entire query

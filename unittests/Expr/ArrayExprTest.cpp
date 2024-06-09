@@ -13,6 +13,7 @@
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 
 #include <llvm/Support/CommandLine.h>
 
@@ -28,7 +29,7 @@ namespace {
 ref<Expr> getConstant(int value, Expr::Width width) {
   int64_t ext = value;
   uint64_t trunc = ext & (((uint64_t)-1LL) >> (64 - width));
-  return ConstantExpr::create(trunc, width);
+  return exprBuilder->Constant(trunc, width);
 }
 
 static ArrayCache ac;
@@ -36,7 +37,7 @@ static ArrayCache ac;
 TEST(ArrayExprTest, HashCollisions) {
   klee::OptimizeArray = ALL;
   std::vector<ref<ConstantExpr>> constVals(256,
-                                           ConstantExpr::create(5, Expr::Int8));
+                                           exprBuilder->Constant(5, Expr::Int8));
   const Array *array = ac.CreateArray("arr0", 256, constVals.data(),
                                       constVals.data() + constVals.size(),
                                       Expr::Int32, Expr::Int8);

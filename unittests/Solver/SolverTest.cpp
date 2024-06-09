@@ -12,6 +12,7 @@
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
 
@@ -33,7 +34,7 @@ const Expr::Width g_types[] = { Expr::Bool,
 ref<Expr> getConstant(int value, Expr::Width width) {
   int64_t ext = value;
   uint64_t trunc = ext & (((uint64_t) -1LL) >> (64 - width));
-  return ConstantExpr::create(trunc, width);
+  return exprBuilder->Constant(trunc, width);
 }
 
 // We have to have the cache globally scopped (and not in ``testOperation``)
@@ -72,13 +73,13 @@ void testOperation(Solver &solver,
     partiallyConstantArgs[kid] = getConstant(value, operandWidth);
 
     ref<Expr> expr = 
-      NotOptimizedExpr::create(EqExpr::create(partiallyConstantArgs[kid].expr,
+      exprBuilder->NotOptimized(exprBuilder->Eq(partiallyConstantArgs[kid].expr,
                                               symbolicArgs[kid].expr));
     
     ref<Expr> partiallyConstantExpr =
       Expr::createFromKind(T::kind, partiallyConstantArgs);
     
-    ref<Expr> queryExpr = EqExpr::create(fullySymbolicExpr, 
+    ref<Expr> queryExpr = exprBuilder->Eq(fullySymbolicExpr, 
                                          partiallyConstantExpr);
 
     ConstraintSet constraints;

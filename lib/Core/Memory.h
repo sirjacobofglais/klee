@@ -14,6 +14,7 @@
 #include "TimingSolver.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 
 #include "llvm/ADT/StringExtras.h"
 
@@ -111,13 +112,13 @@ public:
   }
 
   ref<ConstantExpr> getBaseExpr() const { 
-    return ConstantExpr::create(address, Context::get().getPointerWidth());
+    return exprBuilder->Constant(address, Context::get().getPointerWidth());
   }
   ref<ConstantExpr> getSizeExpr() const { 
-    return ConstantExpr::create(size, Context::get().getPointerWidth());
+    return exprBuilder->Constant(size, Context::get().getPointerWidth());
   }
   ref<Expr> getOffsetExpr(ref<Expr> pointer) const {
-    return SubExpr::create(pointer, getBaseExpr());
+    return exprBuilder->Sub(pointer, getBaseExpr());
   }
   ref<Expr> getBoundsCheckPointer(ref<Expr> pointer) const {
     return getBoundsCheckOffset(getOffsetExpr(pointer));
@@ -128,15 +129,15 @@ public:
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
     if (size==0) {
-      return EqExpr::create(offset, 
+      return exprBuilder->Eq(offset, 
                             ConstantExpr::alloc(0, Context::get().getPointerWidth()));
     } else {
-      return UltExpr::create(offset, getSizeExpr());
+      return exprBuilder->Ult(offset, getSizeExpr());
     }
   }
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
     if (bytes<=size) {
-      return UltExpr::create(offset, 
+      return exprBuilder->Ult(offset, 
                              ConstantExpr::alloc(size - bytes + 1, 
                                                  Context::get().getPointerWidth()));
     } else {
