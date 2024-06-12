@@ -227,7 +227,7 @@ private:
     // canonicalizing builder is probably the right choice, but this
     // is yet another area where we would really prefer it to be
     // global or else use static methods.
-    return exprBuilder->Sub(re->index, base->index) == offset;
+    return SubExpr::create(re->index, base->index) == offset;
   }
   
   
@@ -253,20 +253,20 @@ private:
     // Get stride expr in proper index width.
     Expr::Width idxWidth = base->index->getWidth();
     ref<Expr> strideExpr = ConstantExpr::alloc(stride, idxWidth);
-    ref<Expr> offset = exprBuilder->Constant(0, idxWidth);
+    ref<Expr> offset = ConstantExpr::create(0, idxWidth);
     
     e = e->getKid(1);
     
     // concat chains are unbalanced to the right
     while (e->getKind() == Expr::Concat) {
-      offset = exprBuilder->Add(offset, strideExpr);
+      offset = AddExpr::create(offset, strideExpr);
       if (!isReadExprAtOffset(e->getKid(0), base, offset))
 	return NULL;
       
       e = e->getKid(1);
     }
     
-    offset = exprBuilder->Add(offset, strideExpr);
+    offset = AddExpr::create(offset, strideExpr);
     if (!isReadExprAtOffset(e, base, offset))
       return NULL;
     

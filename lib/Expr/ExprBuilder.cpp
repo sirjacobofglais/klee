@@ -700,12 +700,34 @@ namespace {
     // Used to mark Optimising rewrites only, not canonicalisations
     ref<Expr> record_opt(ref<Expr> val) {
       ++stats::exprOpts;
+
+      switch(val->getKind()) {
+
+        case Expr::Add: case Expr::Sub: case Expr::Mul: case Expr::UDiv: case Expr::SDiv: case Expr::URem: case Expr::SRem: {
+          ++stats::exprOpts1;
+          break;
+        }
+
+        default : {
+          ++stats::exprOpts2;
+        }
+
+      }
+
       return val;
     }
 
     // Used to mark rewrites that produce a constant
     ref<Expr> record_const_opt(ref<Expr> val) {
+
       ++stats::constOpts;
+      if (val->getWidth() == Expr::Bool) {
+        if (val->isTrue())
+          ++stats::exprOpts3;
+        if (val->isFalse())
+          ++stats::exprOpts4;
+      } else if (val->isZero())
+        ++stats::exprOpts5;
       return record_opt(val);
     }
 
@@ -2190,6 +2212,7 @@ namespace {
         // Select Y X X => X
         return record_opt(LHS);
       }
+      
       return Base->Select(Cond, LHS, RHS);
     }
   };
@@ -2265,6 +2288,22 @@ namespace {
     ref<Expr> Sge(const ref<Expr> &LHS, const ref<Expr> &RHS) {
       // X s>= Y ==> Y s<= X
       return Builder->Sle(RHS, LHS);
+    }
+
+    ref<Expr> ZExt(const ref<Expr> &expr, Expr::Width w) {
+      if (w < expr->getWidth()) {
+        //Required for correctness
+        return ExtractExpr::create(expr, 0, w);
+      }
+      return Base->ZExt(expr, w);
+    }
+
+    ref<Expr> SExt(const ref<Expr> &expr, Expr::Width w) {
+      if (w < expr->getWidth()) {
+        //Required for correctness
+        return ExtractExpr::create(expr, 0, w);
+      }
+      return Base->SExt(expr, w);
     }
   };
 

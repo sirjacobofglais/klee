@@ -1,4 +1,4 @@
-# RUN: %kleaver -print-smtlib -smtlib-abbreviation-mode=none %s > %t1.smt2
+# RUN: %kleaver -print-smtlib -builder=simplify -smtlib-abbreviation-mode=none %s > %t1.smt2
 # RUN: diff %t1.smt2 %p/print-smt-none.smt2.good
 # Query 0 -- Type: InitialValues, Instructions: 27
 (query [] false)

@@ -469,6 +469,11 @@ void StatsTracker::writeStatsHeader() {
          << "Allocations INTEGER,"
          << "States INTEGER,"
          << "ExprOpts INTEGER,"
+         << "ExprOpts1 INTEGER,"
+         << "ExprOpts2 INTEGER,"
+         << "ExprOpts3 INTEGER,"
+         << "ExprOpts4 INTEGER,"
+         << "ExprOpts5 INTEGER,"
          << "ConstOpts INTEGER,"
          BRANCH_TYPES
          TERMINATION_CLASSES
@@ -517,6 +522,11 @@ void StatsTracker::writeStatsHeader() {
          << "Allocations,"
          << "States,"
          << "ExprOpts,"
+         << "ExprOpts1,"
+         << "ExprOpts2,"
+         << "ExprOpts3,"
+         << "ExprOpts4,"
+         << "ExprOpts5,"
          << "ConstOpts,"
          BRANCH_TYPES
          TERMINATION_CLASSES
@@ -527,6 +537,11 @@ void StatsTracker::writeStatsHeader() {
   #undef TCLASS
   #define TCLASS(Name, I) << "?,"
   insert << " VALUES ("
+         << "?,"
+         << "?,"
+         << "?,"
+         << "?,"
+         << "?,"
          << "?,"
          << "?,"
          << "?,"
@@ -600,9 +615,14 @@ void StatsTracker::writeStatsLine() {
   sqlite3_bind_int64(insertStmt, arg++, stats::inhibitedForks);
   sqlite3_bind_int64(insertStmt, arg++, stats::externalCalls);
   sqlite3_bind_int64(insertStmt, arg++, stats::allocations);
-  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts);
-  sqlite3_bind_int64(insertStmt, arg++, stats::constOpts);
   sqlite3_bind_int64(insertStmt, arg++, ExecutionState::getLastID());
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts1);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts2);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts3);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts4);
+  sqlite3_bind_int64(insertStmt, arg++, stats::exprOpts5);
+  sqlite3_bind_int64(insertStmt, arg++, stats::constOpts);
   BRANCH_TYPES
   TERMINATION_CLASSES
 #ifdef KLEE_ARRAY_DEBUG

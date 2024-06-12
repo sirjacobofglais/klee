@@ -19,6 +19,13 @@ namespace stats {
   // TODO: Enable only alongside opt flag (to be written)
   extern Statistic exprOpts;
 
+  extern Statistic exprOpts1;
+  extern Statistic exprOpts2;
+  extern Statistic exprOpts3;
+  extern Statistic exprOpts4;
+  extern Statistic exprOpts5;
+
+
   // Number of exprOpts that produce a constant value
   extern Statistic constOpts;
 }

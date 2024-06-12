@@ -415,6 +415,7 @@ int main(int argc, char **argv) {
     Builder = createSimplifyingExprBuilder(Builder);
     break;
   }
+  exprBuilder = Builder;
 
   switch (ToolAction) {
   case PrintTokens:

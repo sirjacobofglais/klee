@@ -1272,7 +1272,7 @@ ExprResult ParserImpl::ParseAnyReadParenExpr(const Token &Name,
       // Read macro pattern fails to match.
       ExprHandle OffsetIndex = Index;
       if (i)
-        OffsetIndex = exprBuilder->Add(OffsetIndex,
+        OffsetIndex = AddExpr::create(OffsetIndex,
                                       Builder->Constant(i, ArrayDomainType));
       Kids[i] = Builder->Read(Array.get(), OffsetIndex);
     }

@@ -78,7 +78,7 @@ namespace klee {
     }
 
     ref<Expr> eqZero(ref<Expr> e) {
-      return Eq(e, Constant(0, e->getWidth()));
+      return Eq(Constant(0, e->getWidth()), e);
     }
   };
 
@@ -99,7 +99,7 @@ namespace klee {
   /// Base - The base builder to use when constructing expressions.
   ExprBuilder *createSimplifyingExprBuilder(ExprBuilder *Base);
 
-  extern ExprBuilder* exprBuilder;
+  extern ExprBuilder *exprBuilder;
 }
 
 #endif /* KLEE_EXPRBUILDER_H */
