@@ -679,11 +679,11 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep "(query .. false .true." %t2
 (query [] false [(Sle (SExt X:(Read w8 0 a)) (ZExt X))])
 
-# Check -- (ZExt X) <=s (SExt X) => false 
+# Check -- (ZExt X) <s (SExt X) => false 
 # RUN: grep -A 2 "# Query 125$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .false." %t2
-(query [] false [(Sle (ZExt X:(Read w8 0 a)) (SExt X))])
+(query [] false [(Slt (ZExt X:(Read w8 0 a)) (SExt X))])
 
 # Check -- (ZExt X) == C => X == C if widths allow 
 # RUN: grep -A 2 "# Query 126$" %t > %t2

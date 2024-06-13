@@ -2098,6 +2098,10 @@ namespace {
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Slt(LE->src, RE->src));
+          // (ZExt X) <s (SExt X) => false
+          if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
+            if (exactMatch(LE->src.get(), RE->src.get()))
+              return record_const_opt(Builder->False());
           break;
         }
 
@@ -2143,11 +2147,6 @@ namespace {
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Sle(LE->src, RE->src));
-
-          // (ZExt X) <=s (SExt X) => false
-          if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
-            if (exactMatch(LE->src.get(), RE->src.get()))
-              return record_const_opt(Builder->False());
           break;
         }
 
