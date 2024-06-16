@@ -709,7 +709,7 @@ namespace {
           break;
         }
 
-        default : {
+        default: {
           ++stats::exprOpts2;
         }
 
@@ -831,7 +831,7 @@ namespace {
 
       if (exactMatch(LHS.get(), RHS.get())) {
         // X + X => X << 1
-        return record_const_opt(Builder->Shl(LHS, Builder->Constant(1, LHS->getWidth())));
+        return record_opt(Builder->Shl(LHS, Builder->Constant(1, LHS->getWidth())));
       }
 
       if (LHS->getWidth() == Expr::Bool) 
