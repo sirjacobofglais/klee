@@ -1050,9 +1050,10 @@ static ref<Expr> EqExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
 /// rd a ReadExpr.  If rd is a read into an all-constant array,
 /// returns a disjunction of equalities on the index.  Otherwise,
 /// returns the initial equality expression. 
-static ref<Expr> TryConstArrayOpt(const ref<ConstantExpr> &cl, 
+ ref<Expr> TryConstArrayOpt(const ref<ConstantExpr> &cl, 
 				  ReadExpr *rd) {
-  if (rd->updates.root->isSymbolicArray() || rd->updates.getSize())
+    
+  if (!ConstArrayOpt || rd->updates.root->isSymbolicArray() || rd->updates.getSize())
     return EqExpr_create(cl, rd);
 
   // Number of positions in the array that contain value ct.

@@ -1186,4 +1186,6 @@ inline bool Expr::isFalse() const {
 
 } // End klee namespace
 
+klee::ref<klee::Expr> TryConstArrayOpt(const klee::ref<klee::ConstantExpr> &cl, klee::ReadExpr *rd);
+
 #endif /* KLEE_EXPR_H */

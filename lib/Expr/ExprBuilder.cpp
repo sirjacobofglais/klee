@@ -9,6 +9,7 @@
 
 #include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprStats.h"
+#include "klee/Expr/Expr.h"
 
 using namespace klee;
 
@@ -1722,6 +1723,12 @@ namespace {
 
       switch (RHS->getKind()) {
         default: break;
+
+        case Expr::Read: {
+          ReadExpr *RE = cast<ReadExpr>(RHS);
+
+          return TryConstArrayOpt(LHS, RE);
+        }
 
         //TODO: Copy to Ult, Ule, Slt, Sle (different result in else case) Simplify:3867
         case Expr::ZExt: {
