@@ -843,12 +843,7 @@ namespace {
         case Expr::Add: {
           BinaryExpr *BE = cast<BinaryExpr>(LHS);
           // (X + Y) + Z ==> X + (Y + Z)
-
-          if (exactMatch(BE->left.get(), RHS.get()))
-          // Bring identical terms together as will match further
-            return record_opt(Builder->Add(BE->right,
-                              Builder->Add(BE->left, RHS))); 
-          else return Builder->Add(BE->left,
+          return Builder->Add(BE->left,
                                   Builder->Add(BE->right, RHS));
         }
 
@@ -900,6 +895,10 @@ namespace {
           // X + (Y + C_0) ==> C_0 + (X + Y)
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
             return Builder->Add(CE, Builder->Add(LHS, BE->left));
+
+          if (ref<Expr> otherChild = matchEitherChild(BE, LHS))
+            // X + (X + Y) => Y + (X + X)
+            return Builder->Add(otherChild, Builder->Add(LHS, LHS));
           break;
         }
 
@@ -1041,7 +1040,7 @@ namespace {
           // C_0 - (C_1 + X) ==> (C_0 - C1) - X
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->left))
             return record_opt(Builder->Sub(LHS->Sub(CE), BE->right));
-          // C_0 - (X + C_1) ==> (C_0 + C1) + X
+          // C_0 - (X + C_1) ==> (C_0 - C1) - X
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(BE->right))
             return record_opt(Builder->Sub(LHS->Sub(CE), BE->left));
           break;
@@ -1803,7 +1802,7 @@ namespace {
 
         case Expr::ZExt: {
           // (ZExt X) == (ZExt Y) => X == Y if same width
-          ZExtExpr *LE = dyn_cast<ZExtExpr>(LHS);
+          ZExtExpr *LE = cast<ZExtExpr>(LHS);
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Eq(LE->src, RE->src));
@@ -1812,7 +1811,7 @@ namespace {
 
         case Expr::SExt: {
           // (SExt X) == (SExt Y) => X == Y if same width
-          SExtExpr *LE = dyn_cast<SExtExpr>(LHS);
+          SExtExpr *LE = cast<SExtExpr>(LHS);
           if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Eq(LE->src, RE->src));
@@ -1915,7 +1914,7 @@ namespace {
 
         case Expr::ZExt: {
           // (ZExt X) < (ZExt Y) => X < Y if same width
-          ZExtExpr *LE = dyn_cast<ZExtExpr>(LHS);
+          ZExtExpr *LE = cast<ZExtExpr>(LHS);
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Ult(LE->src, RE->src));
@@ -1923,7 +1922,7 @@ namespace {
         }
 
         case Expr::SExt: {
-          SExtExpr *LE = dyn_cast<SExtExpr>(LHS);
+          SExtExpr *LE = cast<SExtExpr>(LHS);
 
           // (SExt X) < (SExt Y) => X < Y if same width
           if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
@@ -2022,7 +2021,7 @@ namespace {
         }
 
         case Expr::ZExt: {
-          ZExtExpr *LE = dyn_cast<ZExtExpr>(LHS);
+          ZExtExpr *LE = cast<ZExtExpr>(LHS);
 
           // (ZExt X) <= (ZExt Y) => X <= Y if same width
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
@@ -2037,7 +2036,7 @@ namespace {
         }
 
         case Expr::SExt: {
-          SExtExpr *LE = dyn_cast<SExtExpr>(LHS);
+          SExtExpr *LE = cast<SExtExpr>(LHS);
 
           // (ZExt X) <= (ZExt Y) => X <= Y if same width
           if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
@@ -2094,7 +2093,7 @@ namespace {
 
         case Expr::ZExt: {
           // (ZExt X) < (ZExt Y) => X < Y if same width
-          ZExtExpr *LE = dyn_cast<ZExtExpr>(LHS);
+          ZExtExpr *LE = cast<ZExtExpr>(LHS);
           if (ZExtExpr *RE = dyn_cast<ZExtExpr>(RHS))
             if (LE->src->getWidth() == RE->src->getWidth())
               return record_opt(Builder->Slt(LE->src, RE->src));
@@ -2106,7 +2105,7 @@ namespace {
         }
 
         case Expr::SExt: {
-          SExtExpr *LE = dyn_cast<SExtExpr>(LHS);
+          SExtExpr *LE = cast<SExtExpr>(LHS);
 
           // (SExt X) < (SExt Y) => X < Y if same width
           if (SExtExpr *RE = dyn_cast<SExtExpr>(RHS))
@@ -2168,21 +2167,6 @@ namespace {
       
       return Base->Sle(LHS, RHS);
     }
-
-    ref<Expr> ZExt(const ref<NonConstantExpr> &expr, Expr::Width w) {
-      if (expr->getWidth() == w)
-        // ZExt X w => X if w == X.width
-        return record_opt(expr);
-      return Base->ZExt(expr, w);
-    }
-
-    ref<Expr> SExt(const ref<NonConstantExpr> &expr, Expr::Width w) {
-      if (expr->getWidth() == w)
-        // SExt X w => X if w == X.width
-        return record_opt(expr);
-      return Base->SExt(expr, w);
-    }
-    
 
     ref<Expr> Select(const ref<Expr> &Cond, 
                      const ref<Expr> &LHS, 
@@ -2290,18 +2274,20 @@ namespace {
     }
 
     ref<Expr> ZExt(const ref<Expr> &expr, Expr::Width w) {
+      // Required for correctness
       if (w < expr->getWidth()) {
-        //Required for correctness
         return ExtractExpr::create(expr, 0, w);
-      }
+      } else if (w == expr->getWidth())
+        return expr;
       return Base->ZExt(expr, w);
     }
 
     ref<Expr> SExt(const ref<Expr> &expr, Expr::Width w) {
+      // Required for correctness
       if (w < expr->getWidth()) {
-        //Required for correctness
         return ExtractExpr::create(expr, 0, w);
-      }
+      } else if (w == expr->getWidth())
+        return expr;
       return Base->SExt(expr, w);
     }
   };

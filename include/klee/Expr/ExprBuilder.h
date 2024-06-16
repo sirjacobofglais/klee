@@ -95,6 +95,8 @@ namespace klee {
   /// createSimplifyingExprBuilder - Create an expression builder which attemps
   /// to fold redundant expressions and normalize expressions for improved
   /// caching.
+  /// This builder also performs essential canonicalisations for KLEE - 
+  /// constructing without it may lead to runtime issues.
   ///
   /// Base - The base builder to use when constructing expressions.
   ExprBuilder *createSimplifyingExprBuilder(ExprBuilder *Base);

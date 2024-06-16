@@ -841,45 +841,45 @@ array a[64] : w32 -> w8 = symbolic
 # RUN: grep                      "(Eq 0 (Read w8 1 a)." %t2
 (query [] false [(Select w1 (Eq 0 (Read w8 0 a)) (Eq 0 (Read w8 1 a)) false)])
 
-# Check -- ZExt w8 (w8 X) => X 
-# RUN: grep -A 2 "# Query 151$" %t > %t2
-# RUN: cat %t2
-# RUN: grep "(query .. false .(Read w8 0 a)" %t2
-(query [] false [(ZExt w8 X:(Read w8 0 a))])
-
-# Check -- SExt w8 (w8 X) => X 
-# RUN: grep -A 2 "# Query 152$" %t > %t2
-# RUN: cat %t2
-# RUN: grep "(query .. false .(Read w8 0 a)" %t2
-(query [] false [(SExt w8 X:(Read w8 0 a))])
-
 # Check -- w1 X + Y => X ^ Y 
-# RUN: grep -A 2 "# Query 153$" %t > %t2
+# RUN: grep -A 2 "# Query 151$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .(Xor (ZExt (Read w8 0 a))" %t2
 # RUN: grep                       "(ZExt (Read w8 1 a))." %t2
 (query [] false [(Add w1 (ZExt w1 (Read w8 0 a)) (ZExt w1 (Read w8 1 a)))])
 
 # Check -- w1 X - Y => X ^ Y 
-# RUN: grep -A 2 "# Query 154$" %t > %t2
+# RUN: grep -A 2 "# Query 152$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .(Xor (ZExt (Read w8 0 a))" %t2
 # RUN: grep                       "(ZExt (Read w8 1 a))." %t2
 (query [] false [(Sub w1 (ZExt w1 (Read w8 0 a)) (ZExt w1 (Read w8 1 a)))])
 
 # Check -- w1 X * Y => X & Y 
-# RUN: grep -A 2 "# Query 155$" %t > %t2
+# RUN: grep -A 2 "# Query 153$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .(And (ZExt (Read w8 0 a))" %t2
 # RUN: grep                       "(ZExt (Read w8 1 a))." %t2
 (query [] false [(Mul w1 (ZExt w1 (Read w8 0 a)) (ZExt w1 (Read w8 1 a)))])
 
 # Check -- true ^ X  => ~X 
-# RUN: grep -A 2 "# Query 156$" %t > %t2
+# RUN: grep -A 2 "# Query 154$" %t > %t2
 # RUN: cat %t2
 # RUN: grep "(query .. false .(Not (ZExt (Read w8 0 a))" %t2
 (query [] false [(Xor w1 true (ZExt w1 (Read w8 0 a)))])
 
+# Check -- X + (X + Y) ==> Y + (X << 1)  (via X + (Y + Y))
+# RUN: grep -A 3 "# Query 155$" %t > %t2
+# RUN: cat %t
+# RUN: grep "(query .. false .(Add w8 (Read w8 0 a)" %t2
+# RUN: grep                          "(Shl w8 (Read w8 1 a) 1" %t2
+(query [] false [(Add w8 (Read w8 1 a) (Add w8 (Read w8 0 a) (Read w8 1 a)))])
+
+# Check -- X + (0 - X) ==> 0 
+# RUN: grep -A 3 "# Query 156" %t > %t2
+# RUN: cat %t2
+# RUN: grep "(query .. false .(w8 0)" %t2
+(query [] false [(Add w8 X:(Read w8 0 a) (Sub w8 0 X))])
 
 
 
